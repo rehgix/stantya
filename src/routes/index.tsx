@@ -150,12 +150,17 @@ function Dashboard() {
       <main className="mx-auto max-w-6xl px-5 sm:px-8">
         <section className="pt-6 sm:pt-8">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <span className="font-mono text-muted-foreground text-[11px] tracking-[0.2em] uppercase">
-              Índice de coleccionista
-            </span>
+            <div>
+              <h1 className="font-display text-xl font-semibold tracking-tight sm:text-2xl">
+                Tu estantería
+              </h1>
+              <p className="font-mono text-muted-foreground mt-1 text-[11px]">
+                {totals.owned} artículos · {totals.wishlist} en deseos
+              </p>
+            </div>
             <button
               onClick={() => supabase.auth.signOut()}
-              className="font-mono text-muted-foreground hover:text-foreground text-[11px]"
+              className="font-mono text-muted-foreground hover:text-foreground text-[11px] sm:hidden"
             >
               Salir
             </button>
@@ -166,13 +171,13 @@ function Dashboard() {
               <button
                 key={option.value}
                 onClick={() => setFilter(option.value)}
-                className={`slide font-display shrink-0 px-4 py-2 text-sm ${
+                className={`slide font-display shrink-0 rounded-xl px-4 py-2 text-[13px] transition ${
                   filter === option.value
                     ? "bg-primary font-semibold text-primary-foreground"
-                    : "bg-card ring-line font-medium ring-1"
+                    : "bg-card ring-line/70 text-muted-foreground hover:text-foreground font-medium ring-1"
                 }`}
               >
-                <span className="inline-block">{option.label}</span>
+                <span>{option.label}</span>
               </button>
             ))}
           </div>
@@ -180,19 +185,21 @@ function Dashboard() {
 
         <section className="py-6 sm:py-8">
           {visible.length === 0 ? (
-            <div className="bg-card ring-line rounded-xl p-10 text-center ring-1">
+            <div className="bg-card ring-line/70 rounded-xl p-10 text-center ring-1">
               <p className="font-display text-lg font-semibold">Aún no hay artículos aquí</p>
               <p className="font-mono text-muted-foreground mt-2 text-xs">
                 Usa el botón «Añadir» para registrar libros, videojuegos o películas.
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-5 lg:grid-cols-5">
               {visible.map((row) => (
                 <ItemCard key={row.id} row={row} onRemove={remove} />
               ))}
             </div>
           )}
+        </section>
+
         </section>
       </main>
 
