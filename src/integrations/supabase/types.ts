@@ -14,7 +14,92 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      items: {
+        Row: {
+          base_value_eur: number | null
+          cover_url: string | null
+          created_at: string
+          creator: string | null
+          external_id: string | null
+          id: string
+          media_type: string
+          platform: string | null
+          release_year: number | null
+          title: string
+        }
+        Insert: {
+          base_value_eur?: number | null
+          cover_url?: string | null
+          created_at?: string
+          creator?: string | null
+          external_id?: string | null
+          id?: string
+          media_type: string
+          platform?: string | null
+          release_year?: number | null
+          title: string
+        }
+        Update: {
+          base_value_eur?: number | null
+          cover_url?: string | null
+          created_at?: string
+          creator?: string | null
+          external_id?: string | null
+          id?: string
+          media_type?: string
+          platform?: string | null
+          release_year?: number | null
+          title?: string
+        }
+        Relationships: []
+      }
+      user_inventory: {
+        Row: {
+          condition: string
+          created_at: string
+          id: string
+          is_wishlist: boolean
+          item_id: string
+          market_value_eur: number
+          notes: string | null
+          purchase_price_eur: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          condition?: string
+          created_at?: string
+          id?: string
+          is_wishlist?: boolean
+          item_id: string
+          market_value_eur?: number
+          notes?: string | null
+          purchase_price_eur?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          condition?: string
+          created_at?: string
+          id?: string
+          is_wishlist?: boolean
+          item_id?: string
+          market_value_eur?: number
+          notes?: string | null
+          purchase_price_eur?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_inventory_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
