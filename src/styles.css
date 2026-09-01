@@ -44,28 +44,29 @@
 
 :root {
   --radius: 0.75rem;
-  --background: oklch(0.168 0.014 260);
-  --foreground: oklch(0.968 0.003 250);
-  --card: oklch(0.229 0.019 260);
-  --card-foreground: oklch(0.968 0.003 250);
-  --line: oklch(0.315 0.024 258);
-  --border: oklch(0.315 0.024 258);
-  --muted: oklch(0.229 0.019 260);
-  --muted-foreground: oklch(0.658 0.024 256);
-  --primary: oklch(0.951 0.213 118);
-  --primary-foreground: oklch(0.168 0.014 260);
-  --secondary: oklch(0.229 0.019 260);
-  --secondary-foreground: oklch(0.968 0.003 250);
-  --accent: oklch(0.279 0.022 259);
-  --accent-foreground: oklch(0.968 0.003 250);
-  --destructive: oklch(0.702 0.174 26);
-  --destructive-foreground: oklch(0.168 0.014 260);
-  --up: oklch(0.771 0.148 163);
-  --down: oklch(0.702 0.174 26);
-  --ring: oklch(0.951 0.213 118 / 50%);
-  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --background: oklch(0.176 0.012 267);
+  --foreground: oklch(0.938 0.004 270);
+  --card: oklch(0.238 0.014 268);
+  --line: oklch(0.302 0.014 268);
+  --border: oklch(0.302 0.014 268);
+  --muted: oklch(0.238 0.014 268);
+  --muted-foreground: oklch(0.672 0.017 268);
+  --primary: oklch(0.585 0.223 277);
+  --primary-foreground: oklch(0.978 0.004 270);
+  --card-foreground: oklch(0.938 0.004 270);
+  --secondary: oklch(0.238 0.014 268);
+  --secondary-foreground: oklch(0.938 0.004 270);
+  --accent: oklch(0.275 0.016 268);
+  --accent-foreground: oklch(0.938 0.004 270);
+  --destructive: oklch(0.647 0.19 22);
+  --destructive-foreground: oklch(0.978 0.004 270);
+  --up: oklch(0.742 0.145 163);
+  --down: oklch(0.647 0.19 22);
+  --ring: oklch(0.585 0.223 277 / 45%);
+  --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
+
 
 @layer base {
   * {

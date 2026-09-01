@@ -104,72 +104,63 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen pb-28">
-      <header className="border-line bg-background/95 sticky top-0 z-40 border-b backdrop-blur-sm">
-        <div className="mx-auto max-w-6xl px-5 sm:px-8">
-          <div className="grid grid-cols-1 items-center gap-4 py-4 sm:grid-cols-3 sm:gap-6 sm:py-5">
-            <div className="flex items-center gap-3">
-              <span className="font-display grid size-9 shrink-0 -skew-x-12 place-items-center bg-primary text-lg font-bold text-primary-foreground">
-                V
-              </span>
-              <div className="-skew-x-12">
-                <p className="font-display skew-x-12 text-base leading-none font-semibold tracking-tight">
-                  VULCAM
-                </p>
-                <p className="font-mono text-muted-foreground mt-1 skew-x-12 text-[10px] tracking-[0.2em] uppercase">
-                  Colección física
-                </p>
-              </div>
-            </div>
-
-            <div className="rise sm:text-right">
-              <p className="font-mono text-muted-foreground text-[10px] tracking-[0.25em] uppercase">
-                Valor total estimado
+      <header className="border-line/70 bg-background/60 sticky top-0 z-40 border-b backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3.5 sm:px-8 sm:py-4">
+          <div className="flex items-center gap-3">
+            <span className="font-display grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-base font-bold text-primary-foreground">
+              V
+            </span>
+            <div>
+              <p className="font-display text-[15px] leading-none font-semibold tracking-tight">
+                VULCAM
               </p>
-              <div className="flex items-baseline gap-3 sm:justify-end">
-                <span className="font-display text-4xl leading-none font-bold tracking-tight text-primary sm:text-5xl">
+              <p className="font-mono text-muted-foreground mt-1 text-[10px] tracking-[0.18em] uppercase">
+                Archivo de colección
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <p className="font-mono text-muted-foreground/80 text-[9px] tracking-[0.22em] uppercase">
+                Valor estimado
+              </p>
+              <div className="mt-0.5 flex items-baseline justify-end gap-2">
+                <span className="font-display text-base leading-none font-semibold tracking-tight">
                   {formatEur(totals.market)}
                 </span>
-              </div>
-            </div>
-
-            <div className="sm:text-right">
-              <div
-                className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 ring-1 ${
-                  totals.delta < 0 ? "bg-down/10 ring-down/20" : "bg-up/10 ring-up/20"
-                }`}
-              >
                 <span
-                  className={`size-1.5 shrink-0 rounded-full ${totals.delta < 0 ? "bg-down" : "bg-up"}`}
-                />
-                <span
-                  className={`font-mono text-xs font-semibold sm:text-sm ${totals.delta < 0 ? "text-down" : "text-up"}`}
+                  className={`font-mono text-[10px] ${totals.delta < 0 ? "text-down/80" : "text-up/80"}`}
                 >
                   {formatDelta(totals.delta)}
                 </span>
-                <span
-                  className={`font-mono text-xs ${totals.delta < 0 ? "text-down/70" : "text-up/70"}`}
-                >
-                  {totals.percent >= 0 ? "+" : "−"}
-                  {Math.abs(totals.percent).toFixed(1)}%
-                </span>
               </div>
-              <p className="font-mono text-muted-foreground mt-2 text-[10px] tracking-[0.15em] uppercase">
-                {totals.owned} artículos · {totals.wishlist} en deseos
-              </p>
             </div>
+            <button
+              onClick={() => supabase.auth.signOut()}
+              className="font-mono text-muted-foreground hover:text-foreground ring-line/70 hidden rounded-lg px-3 py-1.5 text-[11px] ring-1 sm:block"
+            >
+              Salir
+            </button>
           </div>
         </div>
       </header>
 
+
       <main className="mx-auto max-w-6xl px-5 sm:px-8">
         <section className="pt-6 sm:pt-8">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <span className="font-mono text-muted-foreground text-[11px] tracking-[0.2em] uppercase">
-              Índice de coleccionista
-            </span>
+            <div>
+              <h1 className="font-display text-xl font-semibold tracking-tight sm:text-2xl">
+                Tu estantería
+              </h1>
+              <p className="font-mono text-muted-foreground mt-1 text-[11px]">
+                {totals.owned} artículos · {totals.wishlist} en deseos
+              </p>
+            </div>
             <button
               onClick={() => supabase.auth.signOut()}
-              className="font-mono text-muted-foreground hover:text-foreground text-[11px]"
+              className="font-mono text-muted-foreground hover:text-foreground text-[11px] sm:hidden"
             >
               Salir
             </button>
@@ -180,13 +171,13 @@ function Dashboard() {
               <button
                 key={option.value}
                 onClick={() => setFilter(option.value)}
-                className={`slide font-display shrink-0 -skew-x-12 px-4 py-2 text-sm ${
+                className={`slide font-display shrink-0 rounded-xl px-4 py-2 text-[13px] transition ${
                   filter === option.value
                     ? "bg-primary font-semibold text-primary-foreground"
-                    : "bg-card ring-line font-medium ring-1"
+                    : "bg-card ring-line/70 text-muted-foreground hover:text-foreground font-medium ring-1"
                 }`}
               >
-                <span className="inline-block skew-x-12">{option.label}</span>
+                <span>{option.label}</span>
               </button>
             ))}
           </div>
@@ -194,19 +185,21 @@ function Dashboard() {
 
         <section className="py-6 sm:py-8">
           {visible.length === 0 ? (
-            <div className="bg-card ring-line rounded-xl p-10 text-center ring-1">
+            <div className="bg-card ring-line/70 rounded-xl p-10 text-center ring-1">
               <p className="font-display text-lg font-semibold">Aún no hay artículos aquí</p>
               <p className="font-mono text-muted-foreground mt-2 text-xs">
                 Usa el botón «Añadir» para registrar libros, videojuegos o películas.
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-5 lg:grid-cols-5">
               {visible.map((row) => (
                 <ItemCard key={row.id} row={row} onRemove={remove} />
               ))}
             </div>
           )}
+        </section>
+
         </section>
       </main>
 
@@ -215,9 +208,9 @@ function Dashboard() {
       ) : (
         <button
           onClick={() => setAdding(true)}
-          className="font-display fixed right-5 bottom-5 z-40 -skew-x-6 rounded-full bg-primary px-6 py-4 text-sm font-bold text-primary-foreground shadow-2xl shadow-black/50 ring-1 ring-primary/40"
+          className="font-display fixed right-5 bottom-5 z-40 rounded-full bg-primary px-6 py-4 text-sm font-bold text-primary-foreground shadow-2xl shadow-black/50 ring-1 ring-primary/40"
         >
-          <span className="inline-block skew-x-6">+ Añadir</span>
+          <span className="inline-block">+ Añadir</span>
         </button>
       )}
     </div>

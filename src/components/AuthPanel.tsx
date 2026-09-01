@@ -50,14 +50,14 @@ export function AuthPanel() {
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5">
       <div className="rise">
         <div className="flex items-center gap-3">
-          <span className="font-display grid size-9 shrink-0 -skew-x-12 place-items-center bg-primary text-lg font-bold text-primary-foreground">
+          <span className="font-display grid size-9 shrink-0 place-items-center bg-primary text-lg font-bold text-primary-foreground">
             V
           </span>
-          <div className="-skew-x-12">
-            <p className="font-display skew-x-12 text-base leading-none font-semibold tracking-tight">
+          <div className="">
+            <p className="font-display text-base leading-none font-semibold tracking-tight">
               VULCAM
             </p>
-            <p className="font-mono text-muted-foreground mt-1 skew-x-12 text-[10px] tracking-[0.2em] uppercase">
+            <p className="font-mono text-muted-foreground mt-1 text-[10px] tracking-[0.2em] uppercase">
               Colección física
             </p>
           </div>
@@ -102,9 +102,9 @@ export function AuthPanel() {
             <button
               type="submit"
               disabled={busy}
-              className="font-display w-full -skew-x-6 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-60"
+              className="font-display w-full rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-60"
             >
-              <span className="inline-block skew-x-6">
+              <span className="inline-block">
                 {mode === "signin" ? "Entrar" : "Crear cuenta"}
               </span>
             </button>
