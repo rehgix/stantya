@@ -141,13 +141,13 @@ export function AddItemPanel({
                   setSelected(null);
                   setPlatform("");
                 }}
-                className={`font-display shrink-0 -skew-x-12 px-4 py-2 text-sm ${
+                className={`font-display shrink-0 px-4 py-2 text-sm ${
                   mediaType === type
                     ? "bg-primary font-semibold text-primary-foreground"
                     : "bg-background ring-line font-medium ring-1"
                 }`}
               >
-                <span className="inline-block skew-x-12">{MEDIA_LABEL[type]}</span>
+                <span className="inline-block">{MEDIA_LABEL[type]}</span>
               </button>
             ))}
           </div>
@@ -307,9 +307,9 @@ export function AddItemPanel({
             <button
               onClick={save}
               disabled={saving}
-              className="font-display -skew-x-6 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-60"
+              className="font-display rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-60"
             >
-              <span className="inline-block skew-x-6">
+              <span className="inline-block">
                 {saving ? "Guardando…" : "Guardar artículo"}
               </span>
             </button>

@@ -108,14 +108,14 @@ function Dashboard() {
         <div className="mx-auto max-w-6xl px-5 sm:px-8">
           <div className="grid grid-cols-1 items-center gap-4 py-4 sm:grid-cols-3 sm:gap-6 sm:py-5">
             <div className="flex items-center gap-3">
-              <span className="font-display grid size-9 shrink-0 -skew-x-12 place-items-center bg-primary text-lg font-bold text-primary-foreground">
+              <span className="font-display grid size-9 shrink-0 place-items-center bg-primary text-lg font-bold text-primary-foreground">
                 V
               </span>
-              <div className="-skew-x-12">
-                <p className="font-display skew-x-12 text-base leading-none font-semibold tracking-tight">
+              <div className="">
+                <p className="font-display text-base leading-none font-semibold tracking-tight">
                   VULCAM
                 </p>
-                <p className="font-mono text-muted-foreground mt-1 skew-x-12 text-[10px] tracking-[0.2em] uppercase">
+                <p className="font-mono text-muted-foreground mt-1 text-[10px] tracking-[0.2em] uppercase">
                   Colección física
                 </p>
               </div>
@@ -180,13 +180,13 @@ function Dashboard() {
               <button
                 key={option.value}
                 onClick={() => setFilter(option.value)}
-                className={`slide font-display shrink-0 -skew-x-12 px-4 py-2 text-sm ${
+                className={`slide font-display shrink-0 px-4 py-2 text-sm ${
                   filter === option.value
                     ? "bg-primary font-semibold text-primary-foreground"
                     : "bg-card ring-line font-medium ring-1"
                 }`}
               >
-                <span className="inline-block skew-x-12">{option.label}</span>
+                <span className="inline-block">{option.label}</span>
               </button>
             ))}
           </div>
@@ -215,9 +215,9 @@ function Dashboard() {
       ) : (
         <button
           onClick={() => setAdding(true)}
-          className="font-display fixed right-5 bottom-5 z-40 -skew-x-6 rounded-full bg-primary px-6 py-4 text-sm font-bold text-primary-foreground shadow-2xl shadow-black/50 ring-1 ring-primary/40"
+          className="font-display fixed right-5 bottom-5 z-40 rounded-full bg-primary px-6 py-4 text-sm font-bold text-primary-foreground shadow-2xl shadow-black/50 ring-1 ring-primary/40"
         >
-          <span className="inline-block skew-x-6">+ Añadir</span>
+          <span className="inline-block">+ Añadir</span>
         </button>
       )}
     </div>
