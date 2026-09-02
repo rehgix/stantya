@@ -36,8 +36,9 @@ function toSearchResult(row: NormalizedResult): SearchResult {
     publisher: row.publisher,
     isbn: row.isbn,
     edition: row.edition,
-
+  };
 }
+
 
 /** Consulta la función de servidor segura que habla con Google Books, TMDB y RAWG. */
 export async function searchMedia(mediaType: MediaType, query: string): Promise<SearchResult[]> {
