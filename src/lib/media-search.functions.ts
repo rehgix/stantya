@@ -17,6 +17,10 @@ export interface NormalizedResult {
   isbn: string | null;
   /** Etiqueta corta de la edición física ("Tapa dura", "PS5", …) */
   edition: string | null;
+  /** Fuentes que aportaron datos a este resultado ("OpenLib", "Google Books", …) */
+  sources: string[];
+  /** Carátulas alternativas encontradas en otras fuentes */
+  alt_covers: string[];
 }
 
 interface Input {
@@ -46,6 +50,21 @@ function cleanBookCover(raw?: string): string | null {
   return url;
 }
 
+/** fetch con timeout: ninguna API puede bloquear el agregador. */
+async function fetchSafe(input: string | URL, init?: RequestInit & { timeoutMs?: number }): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), init?.timeoutMs ?? 8000);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function isFallbackCover(url: string | null): boolean {
+  return !url || url.includes("placehold.co");
+}
+
 function coverFallback(title: string): string {
   return `https://placehold.co/400x600/1A1D26/6366F1/png?text=${encodeURIComponent(title.slice(0, 40))}`;
 }
@@ -71,10 +90,11 @@ async function fetchGoogleBooks(q: string, key: string | undefined, lang?: strin
   url.searchParams.set("q", q);
   url.searchParams.set("maxResults", "40");
   url.searchParams.set("printType", "books");
+  url.searchParams.set("country", "ES");
   if (lang) url.searchParams.set("langRestrict", lang);
   if (key) url.searchParams.set("key", key);
 
-  const res = await fetch(url);
+  const res = await fetchSafe(url);
   if (!res.ok) throw new Error("Google Books no respondió correctamente");
   const json = (await res.json()) as { items?: GoogleVolume[] };
   return json.items ?? [];
@@ -105,7 +125,7 @@ async function searchOpenLibrary(query: string): Promise<NormalizedResult[]> {
   const cleaned = query.replace(/[\s-]/g, "");
   const q = isBarcode(query) ? `isbn:${cleaned}` : query;
   const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=25`;
-  const res = await fetch(url);
+  const res = await fetchSafe(url);
   if (!res.ok) throw new Error("Open Library no respondió correctamente");
   const json = (await res.json()) as { docs?: OpenLibraryDoc[] };
 
@@ -126,6 +146,8 @@ async function searchOpenLibrary(query: string): Promise<NormalizedResult[]> {
       publisher: doc.publisher?.[0] ?? null,
       isbn: doc.isbn?.[0] ?? null,
       edition: pages > 0 && pages < 200 ? "Bolsillo" : pages >= 500 ? "Tapa dura" : "Tapa blanda",
+      sources: ["OpenLib"],
+      alt_covers: [],
     };
   });
 }
@@ -196,6 +218,8 @@ async function searchGoogleBooksResults(query: string): Promise<NormalizedResult
       publisher: info.publisher ?? null,
       isbn,
       edition: bookEdition(info),
+      sources: ["Google Books"],
+      alt_covers: [],
     };
   });
 
@@ -224,7 +248,7 @@ async function searchMovies(query: string): Promise<NormalizedResult[]> {
     url.searchParams.set("include_adult", "false");
     url.searchParams.set("page", "1");
     if (!isV4Token) url.searchParams.set("api_key", key);
-    const res = await fetch(url, { headers });
+    const res = await fetchSafe(url, { headers });
     if (!res.ok) throw new Error("TMDB no respondió correctamente");
     const json = (await res.json()) as { results?: TmdbMovie[] };
     return json.results ?? [];
@@ -239,7 +263,7 @@ async function searchMovies(query: string): Promise<NormalizedResult[]> {
       try {
         const creditsUrl = new URL(`https://api.themoviedb.org/3/movie/${movie.id}/credits`);
         if (!isV4Token) creditsUrl.searchParams.set("api_key", key);
-        const creditsRes = await fetch(creditsUrl, { headers });
+        const creditsRes = await fetchSafe(creditsUrl, { headers });
         if (creditsRes.ok) {
           const credits = (await creditsRes.json()) as { crew?: { job?: string; name?: string }[] };
           director = credits.crew?.find((member) => member.job === "Director")?.name ?? null;
@@ -263,6 +287,8 @@ async function searchMovies(query: string): Promise<NormalizedResult[]> {
         publisher: null,
         isbn: null,
         edition: null,
+        sources: ["TMDB"],
+        alt_covers: [],
       };
     }),
   );
@@ -332,7 +358,7 @@ async function searchGames(query: string): Promise<NormalizedResult[]> {
     key,
   )}&name=${encodeURIComponent(query)}&fields=overview,genres&include=boxart`;
 
-  const res = await fetch(url);
+  const res = await fetchSafe(url);
   if (!res.ok) throw new Error("TheGamesDB no respondió correctamente");
   const json = (await res.json()) as {
     data?: { games?: TgdbGame[] };
@@ -373,6 +399,8 @@ async function searchGames(query: string): Promise<NormalizedResult[]> {
       publisher: null,
       isbn: null,
       edition: platform,
+      sources: ["TheGamesDB"],
+      alt_covers: [],
     };
   });
 }
