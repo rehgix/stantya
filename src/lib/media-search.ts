@@ -40,7 +40,7 @@ function toSearchResult(row: NormalizedResult): SearchResult {
 }
 
 
-/** Consulta la función de servidor segura que habla con Google Books, TMDB y RAWG. */
+/** Consulta la función de servidor segura que habla con Google Books, Open Library, TMDB y TheGamesDB. */
 export async function searchMedia(mediaType: MediaType, query: string): Promise<SearchResult[]> {
   const term = query.trim();
   if (term.length < 2) return [];
