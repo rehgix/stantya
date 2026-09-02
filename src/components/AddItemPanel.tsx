@@ -57,8 +57,10 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
   const [year, setYear] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
   const [synopsis, setSynopsis] = useState("");
+  const [publisher, setPublisher] = useState("");
   const [externalId, setExternalId] = useState<string | null>(null);
   const [format, setFormat] = useState<string>("");
+
   const [status, setStatus] = useState<Status>("pendiente");
   const [rating, setRating] = useState(0);
   const [notes, setNotes] = useState("");
