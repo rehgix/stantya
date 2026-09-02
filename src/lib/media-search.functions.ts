@@ -406,7 +406,7 @@ interface TgdbGame {
 }
 
 /** TheGamesDB: carátula frontal oficial de la caja física por plataforma. */
-async function searchGames(query: string): Promise<NormalizedResult[]> {
+async function searchTheGamesDb(query: string): Promise<NormalizedResult[]> {
   const key = process.env["THEGAMESDB_API_KEY"];
   if (!key) throw new Error("Falta la clave THEGAMESDB_API_KEY en el backend");
 
@@ -461,6 +461,91 @@ async function searchGames(query: string): Promise<NormalizedResult[]> {
   });
 }
 
+
+interface RawgGame {
+  id: number;
+  name?: string;
+  released?: string | null;
+  background_image?: string | null;
+  platforms?: { platform?: { name?: string } }[];
+}
+
+/** RAWG: respaldo para sinopsis, años y arte promocional cuando falta la caja física. */
+async function searchRawg(query: string): Promise<NormalizedResult[]> {
+  const key = process.env["RAWG_API_KEY"];
+  if (!key) return [];
+  const url = new URL("https://api.rawg.io/api/games");
+  url.searchParams.set("key", key);
+  url.searchParams.set("search", query);
+  url.searchParams.set("page_size", "25");
+  url.searchParams.set("search_precise", "false");
+  url.searchParams.set("ordering", "-added");
+
+  const res = await fetchSafe(url);
+  if (!res.ok) throw new Error("RAWG no respondió correctamente");
+  const json = (await res.json()) as { results?: RawgGame[] };
+
+  return (json.results ?? []).map((game) => {
+    const title = game.name || "Sin título";
+    const platform = game.platforms?.[0]?.platform?.name ?? null;
+    return {
+      external_id: `rawg-${game.id}`,
+      title,
+      creator: null,
+      release_year: year(game.released),
+      cover_url: game.background_image ?? coverFallback(title),
+      summary: null,
+      media_type: "game" as const,
+      platform,
+      publisher: null,
+      isbn: null,
+      edition: platform,
+      sources: ["RAWG"],
+      alt_covers: [],
+    };
+  });
+}
+
+/** Videojuegos: TheGamesDB (box art físico, prioritario) + RAWG (respaldo), en paralelo. */
+async function searchGames(query: string): Promise<NormalizedResult[]> {
+  const [tgdb, rawg] = await Promise.all([
+    searchTheGamesDb(query).catch(() => [] as NormalizedResult[]),
+    searchRawg(query).catch(() => [] as NormalizedResult[]),
+  ]);
+
+  // Arte de RAWG indexado por título: sirve de respaldo y de carátula alternativa.
+  const rawgByTitle = new Map<string, NormalizedResult>();
+  for (const game of rawg) {
+    const key = game.title.toLowerCase().trim();
+    if (!rawgByTitle.has(key)) rawgByTitle.set(key, game);
+  }
+
+  const enriched = tgdb.map((game) => {
+    const match = rawgByTitle.get(game.title.toLowerCase().trim());
+    if (!match) return game;
+    const alt = new Set(game.alt_covers);
+    if (!isFallbackCover(match.cover_url)) alt.add(match.cover_url!);
+    const coverMissing = isFallbackCover(game.cover_url);
+    return {
+      ...game,
+      // La caja física de TheGamesDB manda; RAWG solo cubre el hueco.
+      cover_url: coverMissing ? match.cover_url : game.cover_url,
+      alt_covers: coverMissing
+        ? game.alt_covers
+        : [...alt].filter((url) => url !== game.cover_url),
+      summary: game.summary ?? match.summary,
+      release_year: game.release_year ?? match.release_year,
+      sources: [...new Set([...game.sources, ...match.sources])],
+    };
+  });
+
+  const tgdbTitles = new Set(tgdb.map((game) => game.title.toLowerCase().trim()));
+  const onlyRawg = rawg.filter((game) => !tgdbTitles.has(game.title.toLowerCase().trim()));
+
+  const merged = [...enriched, ...onlyRawg];
+  if (merged.length === 0) throw new Error("No se encontraron videojuegos para esa búsqueda");
+  return merged;
+}
 
 export const searchMediaRemote = createServerFn({ method: "POST" })
   .inputValidator((input: Input) => {
