@@ -1,0 +1,4 @@
+CREATE POLICY "custom_covers_insert_own" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'custom-covers' AND (storage.foldername(name))[1] = auth.uid()::text);
+CREATE POLICY "custom_covers_select_authenticated" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'custom-covers');
+CREATE POLICY "custom_covers_update_own" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'custom-covers' AND (storage.foldername(name))[1] = auth.uid()::text) WITH CHECK (bucket_id = 'custom-covers' AND (storage.foldername(name))[1] = auth.uid()::text);
+CREATE POLICY "custom_covers_delete_own" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'custom-covers' AND (storage.foldername(name))[1] = auth.uid()::text);
