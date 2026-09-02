@@ -115,9 +115,17 @@ function Library() {
               <List className="h-4 w-4" />
             </button>
           </div>
+          {isAdmin ? (
+            <Button asChild size="sm" variant="ghost" title="Panel de administración">
+              <Link to="/admin">
+                <Shield className="h-4 w-4" />
+              </Link>
+            </Button>
+          ) : null}
           <Button size="sm" onClick={() => setAdding(true)}>
             <Plus className="mr-1 h-4 w-4" /> Añadir
           </Button>
+
         </div>
         <div className="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 pb-3">
           {FILTERS.map((option) => (
