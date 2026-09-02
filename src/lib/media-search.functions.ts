@@ -11,12 +11,19 @@ export interface NormalizedResult {
   summary: string | null;
   media_type: SearchMediaType;
   platform: string | null;
+  /** Editorial (libros) o estudio/distribuidora */
+  publisher: string | null;
+  /** ISBN-13/10 de la edición física concreta */
+  isbn: string | null;
+  /** Etiqueta corta de la edición física ("Tapa dura", "PS5", …) */
+  edition: string | null;
 }
 
 interface Input {
   query: string;
   type: SearchMediaType;
 }
+
 
 const ISBN_RE = /^(97(8|9))?\d{9}(\d|X)$/i;
 
