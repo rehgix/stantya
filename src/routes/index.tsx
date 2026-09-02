@@ -55,6 +55,22 @@ function Library() {
   const [adding, setAdding] = useState(false);
   const [selected, setSelected] = useState<InventoryRow | null>(null);
 
+  const { data: isAdmin = false } = useQuery({
+    queryKey: ["my-admin-role", user?.id],
+    enabled: Boolean(user),
+    queryFn: async (): Promise<boolean> => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user!.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      return Boolean(data);
+    },
+  });
+
+
+
   const { data: rows = [], refetch } = useQuery({
     queryKey: ["inventory", user?.id],
     enabled: Boolean(user),
