@@ -55,8 +55,12 @@ interface GoogleVolume {
     title?: string;
     subtitle?: string;
     authors?: string[];
+    publisher?: string;
     publishedDate?: string;
     description?: string;
+    printType?: string;
+    pageCount?: number;
+    industryIdentifiers?: { type?: string; identifier?: string }[];
     imageLinks?: Record<string, string>;
   };
 }
@@ -75,6 +79,15 @@ async function fetchGoogleBooks(q: string, key: string | undefined, lang?: strin
   return json.items ?? [];
 }
 
+/** Deduce el formato físico probable de la edición a partir de los datos de Google Books. */
+function bookEdition(info: NonNullable<GoogleVolume["volumeInfo"]>): string | null {
+  const pages = info.pageCount ?? 0;
+  if (info.printType && info.printType !== "BOOK") return "Ilustrado";
+  if (pages > 0 && pages < 200) return "Bolsillo";
+  if (pages >= 500) return "Tapa dura";
+  return "Tapa blanda";
+}
+
 async function searchBooks(query: string): Promise<NormalizedResult[]> {
   const key = process.env["GOOGLE_BOOKS_API_KEY"];
   const cleaned = query.replace(/[\s-]/g, "");
@@ -83,6 +96,16 @@ async function searchBooks(query: string): Promise<NormalizedResult[]> {
 
   let items = await fetchGoogleBooks(q, key, barcode ? undefined : "es");
   if (items.length === 0) items = await fetchGoogleBooks(q, key);
+  if (!barcode) {
+    // Segunda pasada por título exacto: trae otras ediciones físicas del mismo libro.
+    try {
+      const extra = await fetchGoogleBooks(`intitle:"${query}"`, key);
+      const seen = new Set(items.map((item) => item.id));
+      for (const volume of extra) if (!seen.has(volume.id)) items.push(volume);
+    } catch {
+      /* la primera pasada ya basta */
+    }
+  }
 
   return items.map((volume) => {
     const info = volume.volumeInfo ?? {};
@@ -92,6 +115,11 @@ async function searchBooks(query: string): Promise<NormalizedResult[]> {
       cleanBookCover(
         links["extraLarge"] ?? links["large"] ?? links["medium"] ?? links["thumbnail"] ?? links["smallThumbnail"],
       ) ?? coverFallback(title);
+    const identifiers = info.industryIdentifiers ?? [];
+    const isbn =
+      identifiers.find((entry) => entry.type === "ISBN_13")?.identifier ??
+      identifiers.find((entry) => entry.type === "ISBN_10")?.identifier ??
+      null;
     return {
       external_id: volume.id,
       title,
@@ -100,9 +128,13 @@ async function searchBooks(query: string): Promise<NormalizedResult[]> {
       cover_url: cover,
       summary: info.description ?? null,
       media_type: "book" as const,
-      platform: null,
+      platform: info.publisher ?? null,
+      publisher: info.publisher ?? null,
+      isbn,
+      edition: bookEdition(info),
     };
   });
+
 }
 
 
