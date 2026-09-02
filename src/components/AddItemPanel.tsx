@@ -32,17 +32,23 @@ interface Props {
   onClose: () => void;
 }
 
-const MEDIA_TYPES: MediaType[] = ["book", "game", "movie"];
+const MEDIA_TYPES: { value: MediaType; label: string }[] = [
+  { value: "book", label: "📚 Libros" },
+  { value: "game", label: "🎮 Juegos" },
+  { value: "movie", label: "🎬 Cine" },
+];
 
 export function AddItemPanel({ userId, onSaved, onClose }: Props) {
   const [mediaType, setMediaType] = useState<MediaType>("book");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [barcode, setBarcode] = useState("");
   const [identifying, setIdentifying] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
 
   const [title, setTitle] = useState("");
   const [creator, setCreator] = useState("");
