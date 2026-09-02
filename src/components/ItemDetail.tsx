@@ -205,7 +205,11 @@ export function ItemDetail({ row, onChanged, onClose }: Props) {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label>Formato físico</Label>
+          <Label>
+            {item.media_type === "game" ? "Plataforma física" : "Formato físico"}
+            {item.media_type === "book" ? "" : " *"}
+          </Label>
+
           <Select value={format} onValueChange={setFormat}>
             <SelectTrigger>
               <SelectValue placeholder="Selecciona formato" />
