@@ -317,6 +317,19 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
                         ? [result.publisher, result.releaseYear, result.edition].filter(Boolean).join(", ")
                         : [result.creator, result.releaseYear].filter(Boolean).join(" · ")}
                     </p>
+                    {result.sources.length > 0 ? (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {result.sources.map((source) => (
+                          <span
+                            key={source}
+                            className="rounded border border-border/70 px-1 py-px text-[9px] uppercase tracking-wide text-muted-foreground"
+                          >
+                            {source}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+
                   </button>
                 );
               })}
