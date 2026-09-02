@@ -10,7 +10,9 @@ import {
   type Status,
 } from "@/lib/collection";
 import { looksLikeBarcode, searchBooks, searchMedia, type SearchResult } from "@/lib/media-search";
+import { coverAspect, platformStyle } from "@/lib/physical";
 import { identifyCover } from "@/lib/vision.functions";
+
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { StarRating } from "@/components/StarRating";
 import { Button } from "@/components/ui/button";
