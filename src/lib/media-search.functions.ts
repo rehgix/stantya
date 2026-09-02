@@ -152,22 +152,78 @@ async function searchOpenLibrary(query: string): Promise<NormalizedResult[]> {
   });
 }
 
+/** Resolución aproximada de una portada, para quedarnos con la mejor de cada fuente. */
+function coverScore(url: string | null): number {
+  if (isFallbackCover(url)) return 0;
+  const value = url!;
+  if (value.includes("covers.openlibrary.org") && value.includes("-L.jpg")) return 40;
+  if (/zoom=3/.test(value)) return 30;
+  if (value.includes("books.google")) return 20;
+  return 25;
+}
+
+/** Fusiona dos fichas de la misma edición conservando lo mejor de cada fuente. */
+function mergeResults(base: NormalizedResult, extra: NormalizedResult): NormalizedResult {
+  const covers = new Set([...base.alt_covers, ...extra.alt_covers]);
+  const better = coverScore(extra.cover_url) > coverScore(base.cover_url) ? extra : base;
+  const worse = better === base ? extra : base;
+  if (!isFallbackCover(worse.cover_url)) covers.add(worse.cover_url!);
+  covers.delete(better.cover_url ?? "");
+
+  const longest = (a: string | null, b: string | null) =>
+    (b?.length ?? 0) > (a?.length ?? 0) ? b : a;
+
+  return {
+    ...base,
+    cover_url: better.cover_url,
+    creator: base.creator && base.creator !== "Desconocido" ? base.creator : extra.creator,
+    release_year: base.release_year ?? extra.release_year,
+    summary: longest(base.summary, extra.summary),
+    publisher: longest(base.publisher, extra.publisher),
+    platform: base.platform ?? extra.platform,
+    isbn: base.isbn ?? extra.isbn,
+    edition: base.edition ?? extra.edition,
+    sources: [...new Set([...base.sources, ...extra.sources])],
+    alt_covers: [...covers],
+  };
+}
+
+/** Agrega varias fuentes desduplicando por huella y fusionando las coincidencias. */
+function aggregate(
+  groups: NormalizedResult[][],
+  fingerprint: (result: NormalizedResult) => string,
+): NormalizedResult[] {
+  const byKey = new Map<string, NormalizedResult>();
+  const order: string[] = [];
+  for (const group of groups) {
+    for (const result of group) {
+      const key = fingerprint(result);
+      const existing = byKey.get(key);
+      if (existing) byKey.set(key, mergeResults(existing, result));
+      else {
+        byKey.set(key, result);
+        order.push(key);
+      }
+    }
+  }
+  return order.map((key) => byKey.get(key)!);
+}
+
+/** Libros: Open Library (ediciones físicas) + Google Books, en paralelo y tolerante a fallos. */
 async function searchBooks(query: string): Promise<NormalizedResult[]> {
   const [openLibrary, google] = await Promise.all([
     searchOpenLibrary(query).catch(() => [] as NormalizedResult[]),
     searchGoogleBooksResults(query).catch(() => [] as NormalizedResult[]),
   ]);
-  const seen = new Set<string>();
-  const merged: NormalizedResult[] = [];
-  for (const result of [...openLibrary, ...google]) {
-    const fingerprint = `${result.title.toLowerCase()}|${result.publisher?.toLowerCase() ?? ""}|${result.release_year ?? ""}`;
-    if (seen.has(fingerprint)) continue;
-    seen.add(fingerprint);
-    merged.push(result);
-  }
+  const merged = aggregate([openLibrary, google], (result) =>
+    result.isbn
+      ? `isbn:${result.isbn.replace(/[\s-]/g, "")}`
+      : `${result.title.toLowerCase().trim()}|${result.publisher?.toLowerCase() ?? ""}|${result.release_year ?? ""}`,
+  );
   if (merged.length === 0) throw new Error("No se encontraron libros para esa búsqueda");
   return merged;
 }
+
 
 async function searchGoogleBooksResults(query: string): Promise<NormalizedResult[]> {
   const key = process.env["GOOGLE_BOOKS_API_KEY"];
