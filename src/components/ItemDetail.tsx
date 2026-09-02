@@ -34,6 +34,36 @@ export function ItemDetail({ row, onChanged, onClose }: Props) {
   const [rating, setRating] = useState(row.rating ?? 0);
   const [notes, setNotes] = useState(row.notes ?? "");
   const [saving, setSaving] = useState(false);
+  const [coverUrl, setCoverUrl] = useState(item.cover_url ?? "");
+  const [editingCover, setEditingCover] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function saveCover(next: string) {
+    const { error } = await supabase.from("items").update({ cover_url: next || null }).eq("id", item.id);
+    if (error) {
+      toast.error("No se pudo actualizar la carátula");
+      return;
+    }
+    setCoverUrl(next);
+    setEditingCover(false);
+    toast.success("Carátula actualizada");
+    onChanged();
+  }
+
+  async function handleFile(file: File) {
+    if (file.size > 2_000_000) {
+      toast.error("La imagen supera los 2 MB");
+      return;
+    }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error("read"));
+      reader.readAsDataURL(file);
+    });
+    await saveCover(dataUrl);
+  }
+
 
   async function save() {
     setSaving(true);
