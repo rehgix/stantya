@@ -1,50 +1,55 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { LayoutGrid, List, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/use-session";
 import { AuthPanel } from "@/components/AuthPanel";
 import { AddItemPanel } from "@/components/AddItemPanel";
 import { ItemCard } from "@/components/ItemCard";
-import { formatDelta, formatEur, type InventoryRow, type MediaType } from "@/lib/collection";
+import { ItemDetail } from "@/components/ItemDetail";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import type { InventoryRow, MediaType } from "@/lib/collection";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Vulcam — Valora tu colección de libros, juegos y películas" },
+      { title: "Vulcam — Tu biblioteca virtual de libros, juegos y películas" },
       {
         name: "description",
         content:
-          "Gestiona e inventaría tu colección física: valor total en €, estado de conservación, precio pagado y ganancia frente al mercado.",
+          "Cataloga tu colección física en una galería elegante: portadas, sinopsis, formato, estado de lectura o juego, puntuación y notas privadas.",
       },
-      { property: "og:title", content: "Vulcam — Colección física valorada en €" },
+      { property: "og:title", content: "Vulcam — Biblioteca virtual personal" },
       {
         property: "og:description",
         content:
-          "Inventario de libros, videojuegos y películas con valor de mercado estimado y ganancia por artículo.",
+          "Organiza libros, videojuegos y películas por portada, formato físico, estado personal y puntuación.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: Dashboard,
+  component: Library,
 });
 
-type Filter = "all" | MediaType | "wishlist";
+type Filter = "all" | MediaType | "pending";
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: "all", label: "Todo" },
   { value: "book", label: "Libros" },
   { value: "game", label: "Videojuegos" },
   { value: "movie", label: "Películas" },
-  { value: "wishlist", label: "Lista de deseos" },
+  { value: "pending", label: "Pendientes" },
 ];
 
-function Dashboard() {
+function Library() {
   const { user, loading } = useSession();
   const [filter, setFilter] = useState<Filter>("all");
+  const [view, setView] = useState<"grid" | "list">("grid");
   const [adding, setAdding] = useState(false);
+  const [selected, setSelected] = useState<InventoryRow | null>(null);
 
   const { data: rows = [], refetch } = useQuery({
     queryKey: ["inventory", user?.id],
@@ -53,7 +58,7 @@ function Dashboard() {
       const { data, error } = await supabase
         .from("user_inventory")
         .select(
-          "id, item_id, condition, purchase_price_eur, market_value_eur, is_wishlist, items(id, media_type, title, creator, release_year, cover_url, platform, external_id, base_value_eur)",
+          "id, item_id, format, status, rating, notes, items(id, media_type, title, creator, release_year, cover_url, platform, external_id, synopsis)",
         )
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -61,156 +66,120 @@ function Dashboard() {
     },
   });
 
-  const totals = useMemo(() => {
-    const owned = rows.filter((row) => !row.is_wishlist);
-    const market = owned.reduce((sum, row) => sum + Number(row.market_value_eur), 0);
-    const paid = owned.reduce((sum, row) => sum + Number(row.purchase_price_eur), 0);
-    return {
-      market,
-      delta: market - paid,
-      percent: paid > 0 ? ((market - paid) / paid) * 100 : 0,
-      owned: owned.length,
-      wishlist: rows.length - owned.length,
-    };
-  }, [rows]);
-
   const visible = useMemo(() => {
     if (filter === "all") return rows;
-    if (filter === "wishlist") return rows.filter((row) => row.is_wishlist);
-    return rows.filter((row) => !row.is_wishlist && row.items?.media_type === filter);
+    if (filter === "pending")
+      return rows.filter((row) => row.status === "pendiente" || row.status === "deseo");
+    return rows.filter((row) => row.items?.media_type === filter);
   }, [rows, filter]);
 
-  async function remove(id: string) {
-    const { error } = await supabase.from("user_inventory").delete().eq("id", id);
-    if (error) {
-      toast.error("No se pudo quitar el artículo");
-      return;
-    }
-    toast.success("Artículo eliminado");
-    void refetch();
+  if (loading) {
+    return <div className="grid min-h-screen place-items-center text-muted-foreground">Cargando…</div>;
   }
 
-  if (loading) {
+  if (!user) {
     return (
-      <div className="grid min-h-screen place-items-center">
-        <span className="font-mono text-muted-foreground text-xs tracking-[0.2em] uppercase">
-          Cargando colección…
-        </span>
-      </div>
+      <main className="grid min-h-screen place-items-center px-4 py-16">
+        <AuthPanel />
+      </main>
     );
   }
 
-  if (!user) return <AuthPanel />;
-
   return (
-    <div className="min-h-screen pb-28">
-      <header className="border-line/70 bg-background/60 sticky top-0 z-40 border-b backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3.5 sm:px-8 sm:py-4">
-          <div className="flex items-center gap-3">
-            <span className="font-display grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-base font-bold text-primary-foreground">
-              V
-            </span>
-            <div>
-              <p className="font-display text-[15px] leading-none font-semibold tracking-tight">
-                VULCAM
-              </p>
-              <p className="font-mono text-muted-foreground mt-1 text-[10px] tracking-[0.18em] uppercase">
-                Archivo de colección
-              </p>
-            </div>
+    <div className="min-h-screen">
+      <header className="sticky top-0 z-30 border-b border-border/60 bg-background/70 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Biblioteca</p>
+            <h1 className="truncate text-lg font-semibold">Mi archivo personal</h1>
           </div>
-
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <p className="font-mono text-muted-foreground/80 text-[9px] tracking-[0.22em] uppercase">
-                Valor estimado
-              </p>
-              <div className="mt-0.5 flex items-baseline justify-end gap-2">
-                <span className="font-display text-base leading-none font-semibold tracking-tight">
-                  {formatEur(totals.market)}
-                </span>
-                <span
-                  className={`font-mono text-[10px] ${totals.delta < 0 ? "text-down/80" : "text-up/80"}`}
-                >
-                  {formatDelta(totals.delta)}
-                </span>
-              </div>
-            </div>
+          <div className="flex items-center rounded-xl border border-border p-0.5">
             <button
-              onClick={() => supabase.auth.signOut()}
-              className="font-mono text-muted-foreground hover:text-foreground ring-line/70 hidden rounded-lg px-3 py-1.5 text-[11px] ring-1 sm:block"
+              type="button"
+              aria-label="Modo vitrina"
+              onClick={() => setView("grid")}
+              className={`rounded-lg p-1.5 ${view === "grid" ? "bg-primary/15 text-primary" : "text-muted-foreground"}`}
             >
-              Salir
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Modo lista"
+              onClick={() => setView("list")}
+              className={`rounded-lg p-1.5 ${view === "list" ? "bg-primary/15 text-primary" : "text-muted-foreground"}`}
+            >
+              <List className="h-4 w-4" />
             </button>
           </div>
+          <Button size="sm" onClick={() => setAdding(true)}>
+            <Plus className="mr-1 h-4 w-4" /> Añadir
+          </Button>
+        </div>
+        <div className="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 pb-3">
+          {FILTERS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setFilter(option.value)}
+              className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm transition-colors ${
+                filter === option.value
+                  ? "border-primary/60 bg-primary/15 text-primary"
+                  : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
       </header>
 
+      <main className="mx-auto max-w-6xl px-4 py-6">
+        <p className="mb-4 text-sm text-muted-foreground">
+          {visible.length} {visible.length === 1 ? "obra" : "obras"}
+        </p>
 
-      <main className="mx-auto max-w-6xl px-5 sm:px-8">
-        <section className="pt-6 sm:pt-8">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="font-display text-xl font-semibold tracking-tight sm:text-2xl">
-                Tu estantería
-              </h1>
-              <p className="font-mono text-muted-foreground mt-1 text-[11px]">
-                {totals.owned} artículos · {totals.wishlist} en deseos
-              </p>
-            </div>
-            <button
-              onClick={() => supabase.auth.signOut()}
-              className="font-mono text-muted-foreground hover:text-foreground text-[11px] sm:hidden"
-            >
-              Salir
-            </button>
+        {visible.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border p-12 text-center text-muted-foreground">
+            Aún no hay nada aquí. Añade tu primera obra por título, código de barras o portada.
           </div>
-
-          <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-            {FILTERS.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => setFilter(option.value)}
-                className={`slide font-display shrink-0 rounded-xl px-4 py-2 text-[13px] transition ${
-                  filter === option.value
-                    ? "bg-primary font-semibold text-primary-foreground"
-                    : "bg-card ring-line/70 text-muted-foreground hover:text-foreground font-medium ring-1"
-                }`}
-              >
-                <span>{option.label}</span>
-              </button>
+        ) : view === "grid" ? (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            {visible.map((row) => (
+              <ItemCard key={row.id} row={row} view="grid" onOpen={setSelected} />
             ))}
           </div>
-        </section>
-
-        <section className="py-6 sm:py-8">
-          {visible.length === 0 ? (
-            <div className="bg-card ring-line/70 rounded-xl p-10 text-center ring-1">
-              <p className="font-display text-lg font-semibold">Aún no hay artículos aquí</p>
-              <p className="font-mono text-muted-foreground mt-2 text-xs">
-                Usa el botón «Añadir» para registrar libros, videojuegos o películas.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-5 lg:grid-cols-5">
-              {visible.map((row) => (
-                <ItemCard key={row.id} row={row} onRemove={remove} />
-              ))}
-            </div>
-          )}
-        </section>
+        ) : (
+          <div className="space-y-2">
+            {visible.map((row) => (
+              <ItemCard key={row.id} row={row} view="list" onOpen={setSelected} />
+            ))}
+          </div>
+        )}
       </main>
 
-      {adding ? (
-        <AddItemPanel userId={user.id} onClose={() => setAdding(false)} onSaved={() => refetch()} />
-      ) : (
-        <button
-          onClick={() => setAdding(true)}
-          className="font-display fixed right-5 bottom-5 z-40 rounded-full bg-primary px-6 py-4 text-sm font-bold text-primary-foreground shadow-2xl shadow-black/50 ring-1 ring-primary/40"
-        >
-          <span className="inline-block">+ Añadir</span>
-        </button>
-      )}
+      <Dialog open={adding} onOpenChange={setAdding}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Añadir a la biblioteca</DialogTitle>
+          </DialogHeader>
+          <AddItemPanel userId={user.id} onSaved={() => void refetch()} onClose={() => setAdding(false)} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="sr-only">Ficha de la obra</DialogTitle>
+          </DialogHeader>
+          {selected ? (
+            <ItemDetail
+              row={selected}
+              onChanged={() => void refetch()}
+              onClose={() => setSelected(null)}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
