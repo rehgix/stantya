@@ -242,10 +242,19 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
                   : "Título o director…"
             }
           />
-          {searching ? <p className="text-xs text-muted-foreground">Buscando…</p> : null}
+          {searching ? (
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              Buscando…
+            </p>
+          ) : null}
           {searchError ? <p className="text-xs text-destructive">{searchError}</p> : null}
           {results.length > 0 ? (
-            <div className="grid max-h-96 grid-cols-3 gap-3 overflow-y-auto rounded-xl border border-border p-2 sm:grid-cols-4">
+            <div
+              className={`grid max-h-96 gap-3 overflow-y-auto rounded-xl border border-border p-2 ${
+                mediaType === "game" ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-3 sm:grid-cols-4"
+              }`}
+            >
               {results.map((result, index) => (
                 <button
                   key={`${result.externalId}-${index}`}
@@ -253,7 +262,11 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
                   onClick={() => apply(result)}
                   className="group text-left transition-transform hover:scale-[1.03]"
                 >
-                  <div className="aspect-[2/3] w-full overflow-hidden rounded-xl border border-border bg-muted">
+                  <div
+                    className={`w-full overflow-hidden rounded-xl border border-border bg-muted ${
+                      mediaType === "game" ? "aspect-[16/9]" : "aspect-[2/3]"
+                    }`}
+                  >
                     {result.coverUrl ? (
                       <img
                         src={result.coverUrl}
@@ -275,6 +288,7 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
               ))}
             </div>
           ) : null}
+
 
         </TabsContent>
 
