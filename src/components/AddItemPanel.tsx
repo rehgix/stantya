@@ -163,6 +163,14 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
       toast.error("El título es obligatorio");
       return;
     }
+    if (mediaType === "movie" && !format) {
+      toast.error("Elige el formato físico de la película (VHS, DVD, Blu-ray, 4K UHD o Steelbook)");
+      return;
+    }
+    if (mediaType === "game" && !format) {
+      toast.error("Elige la plataforma física del juego");
+      return;
+    }
     setSaving(true);
     try {
       const { data: item, error: itemError } = await supabase
@@ -173,7 +181,8 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
           creator: creator.trim() || null,
           release_year: year ? Number(year) : null,
           cover_url: coverUrl || null,
-          platform: format || null,
+          platform: (mediaType === "book" ? publisher.trim() : format) || null,
+
           external_id: externalId ?? (barcode || null),
           synopsis: synopsis.trim() || null,
         })
