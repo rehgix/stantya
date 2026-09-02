@@ -12,6 +12,7 @@ import {
 import { looksLikeBarcode, searchBooks, searchMedia, type SearchResult } from "@/lib/media-search";
 import { coverAspect, platformBanner, platformStyle } from "@/lib/physical";
 import { identifyCover } from "@/lib/vision.functions";
+import { CoverScanner } from "@/components/CoverScanner";
 
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { StarRating } from "@/components/StarRating";
@@ -372,8 +373,13 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
           >
             {identifying ? "Identificando…" : "Capturar o subir portada"}
           </Button>
+          <p className="text-xs text-muted-foreground">
+            ¿Prefieres digitalizar tu propia caja física con buena calidad? Usa el escáner:
+          </p>
+          <CoverScanner mediaType={mediaType} onScanned={(url) => setCoverUrl(url)} />
         </TabsContent>
       </Tabs>
+
 
       <div className="grid gap-4 sm:grid-cols-[7rem_1fr]">
         <div
