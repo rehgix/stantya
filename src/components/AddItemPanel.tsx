@@ -32,17 +32,23 @@ interface Props {
   onClose: () => void;
 }
 
-const MEDIA_TYPES: MediaType[] = ["book", "game", "movie"];
+const MEDIA_TYPES: { value: MediaType; label: string }[] = [
+  { value: "book", label: "📚 Libros" },
+  { value: "game", label: "🎮 Juegos" },
+  { value: "movie", label: "🎬 Cine" },
+];
 
 export function AddItemPanel({ userId, onSaved, onClose }: Props) {
   const [mediaType, setMediaType] = useState<MediaType>("book");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [barcode, setBarcode] = useState("");
   const [identifying, setIdentifying] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
 
   const [title, setTitle] = useState("");
   const [creator, setCreator] = useState("");
@@ -60,20 +66,24 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
     const term = query.trim();
     if (term.length < 2) {
       setResults([]);
+      setSearchError(null);
       return;
     }
     const timer = setTimeout(async () => {
       setSearching(true);
+      setSearchError(null);
       try {
         setResults(await searchMedia(mediaType, term));
-      } catch {
+      } catch (error) {
         setResults([]);
+        setSearchError(error instanceof Error ? error.message : "No se pudo buscar");
       } finally {
         setSearching(false);
       }
     }, 400);
     return () => clearTimeout(timer);
   }, [query, mediaType]);
+
 
   function apply(result: SearchResult) {
     setMediaType(result.mediaType);
@@ -187,24 +197,25 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2">
-        {MEDIA_TYPES.map((type) => (
+        {MEDIA_TYPES.map((option) => (
           <button
-            key={type}
+            key={option.value}
             type="button"
             onClick={() => {
-              setMediaType(type);
+              setMediaType(option.value);
               setFormat("");
             }}
             className={`rounded-xl border px-4 py-1.5 text-sm transition-colors ${
-              mediaType === type
+              mediaType === option.value
                 ? "border-primary/60 bg-primary/15 text-primary"
                 : "border-border text-muted-foreground hover:text-foreground"
             }`}
           >
-            {MEDIA_LABEL[type]}
+            {option.label}
           </button>
         ))}
       </div>
+
 
       <Tabs defaultValue="search">
         <TabsList className="w-full">
@@ -232,38 +243,39 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
             }
           />
           {searching ? <p className="text-xs text-muted-foreground">Buscando…</p> : null}
+          {searchError ? <p className="text-xs text-destructive">{searchError}</p> : null}
           {results.length > 0 ? (
-            <ul className="max-h-72 space-y-1 overflow-y-auto rounded-xl border border-border p-1">
-              {results.slice(0, 8).map((result, index) => (
-                <li key={`${result.externalId}-${index}`}>
-                  <button
-                    type="button"
-                    onClick={() => apply(result)}
-                    className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-muted/50"
-                  >
-                    <div className="h-14 w-10 shrink-0 overflow-hidden rounded bg-muted">
-                      {result.coverUrl ? (
-                        <img
-                          src={result.coverUrl}
-                          alt={`Portada de ${result.title}`}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : null}
-                    </div>
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium">{result.title}</span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {[result.creator, result.releaseYear, result.platform]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
-                    </span>
-                  </button>
-                </li>
+            <div className="grid max-h-96 grid-cols-3 gap-3 overflow-y-auto rounded-xl border border-border p-2 sm:grid-cols-4">
+              {results.map((result, index) => (
+                <button
+                  key={`${result.externalId}-${index}`}
+                  type="button"
+                  onClick={() => apply(result)}
+                  className="group text-left transition-transform hover:scale-[1.03]"
+                >
+                  <div className="aspect-[2/3] w-full overflow-hidden rounded-xl border border-border bg-muted">
+                    {result.coverUrl ? (
+                      <img
+                        src={result.coverUrl}
+                        alt={`Portada de ${result.title}`}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center px-2 text-center text-[10px] text-muted-foreground">
+                        Sin portada
+                      </div>
+                    )}
+                  </div>
+                  <p className="mt-1.5 line-clamp-2 text-xs font-medium leading-tight">{result.title}</p>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {[result.creator, result.releaseYear].filter(Boolean).join(" · ")}
+                  </p>
+                </button>
               ))}
-            </ul>
+            </div>
           ) : null}
+
         </TabsContent>
 
         <TabsContent value="barcode" className="space-y-3 pt-4">

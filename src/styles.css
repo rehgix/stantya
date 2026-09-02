@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Vulcam design system — "Bold kinetic dark".
+ * Stanya design system — "Bold kinetic dark".
  * Dark-only, high contrast, volt accent, skewed kinetic chips.
  * All colors are oklch semantic tokens. Never hardcode colors in components.
  */
