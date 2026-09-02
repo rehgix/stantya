@@ -10,7 +10,11 @@ export interface SearchResult {
   coverUrl: string | null;
   platform: string | null;
   synopsis: string | null;
+  publisher: string | null;
+  isbn: string | null;
+  edition: string | null;
 }
+
 
 const ISBN_RE = /^(97(8|9))?\d{9}(\d|X)$/i;
 
