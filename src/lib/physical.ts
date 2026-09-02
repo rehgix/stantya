@@ -34,3 +34,22 @@ export function movieCaseStyle(format: string | null | undefined) {
 export function coverAspect(mediaType: MediaType): string {
   return mediaType === "game" ? "aspect-[3/4]" : "aspect-[2/3]";
 }
+
+/** Banner superior tipo caja física según la consola (PS azul, Switch rojo, Xbox verde…). */
+export const PLATFORM_BANNER: { match: RegExp; label: string; className: string }[] = [
+  { match: /^PS5$|PlayStation 5/i, label: "PlayStation 5", className: "bg-white text-[#0070D1]" },
+  { match: /^PS/i, label: "PlayStation", className: "bg-[#0070D1] text-white" },
+  { match: /Switch/i, label: "Nintendo Switch", className: "bg-[#E60012] text-white" },
+  { match: /Wii|GameCube|Nintendo|SNES|NES|Game Boy/i, label: "Nintendo", className: "bg-[#E60012] text-white" },
+  { match: /Xbox/i, label: "Xbox", className: "bg-[#107C10] text-white" },
+  { match: /Mega Drive|Dreamcast|Saturn/i, label: "SEGA", className: "bg-[#1B2A80] text-white" },
+  { match: /PC/i, label: "PC", className: "bg-zinc-200 text-zinc-900" },
+];
+
+export function platformBanner(platform: string | null | undefined) {
+  if (!platform) return null;
+  const found = PLATFORM_BANNER.find((entry) => entry.match.test(platform));
+  return found
+    ? { label: found.label, className: found.className, platform }
+    : { label: platform, className: "bg-secondary text-foreground", platform };
+}

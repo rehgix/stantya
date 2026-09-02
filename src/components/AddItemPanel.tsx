@@ -10,7 +10,7 @@ import {
   type Status,
 } from "@/lib/collection";
 import { looksLikeBarcode, searchBooks, searchMedia, type SearchResult } from "@/lib/media-search";
-import { coverAspect, platformStyle } from "@/lib/physical";
+import { coverAspect, platformBanner, platformStyle } from "@/lib/physical";
 import { identifyCover } from "@/lib/vision.functions";
 
 import { BarcodeScanner } from "@/components/BarcodeScanner";
@@ -50,6 +50,8 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
   const [barcode, setBarcode] = useState("");
   const [identifying, setIdentifying] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const coverFileRef = useRef<HTMLInputElement>(null);
+  const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([]);
 
 
   const [title, setTitle] = useState("");
@@ -100,6 +102,15 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
     setPublisher(result.publisher ?? "");
     if (result.edition) setFormat(result.edition);
     else if (result.platform) setFormat(result.platform);
+
+    if (result.mediaType === "game") {
+      const platforms = results
+        .filter((entry) => entry.title === result.title && entry.platform)
+        .map((entry) => entry.platform as string);
+      setAvailablePlatforms([...new Set(platforms)]);
+    } else {
+      setAvailablePlatforms([]);
+    }
 
     setResults([]);
     setQuery("");
@@ -365,7 +376,9 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
       </Tabs>
 
       <div className="grid gap-4 sm:grid-cols-[7rem_1fr]">
-        <div className="mx-auto aspect-[2/3] w-28 overflow-hidden rounded-xl border border-border bg-muted">
+        <div
+          className={`relative mx-auto w-28 overflow-hidden rounded-xl border border-border bg-muted ${coverAspect(mediaType)}`}
+        >
           {coverUrl ? (
             <img src={coverUrl} alt={`Portada de ${title || "la obra"}`} className="h-full w-full object-cover" />
           ) : (
@@ -373,6 +386,13 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
               Sin portada
             </div>
           )}
+          {mediaType === "game" && platformBanner(format) ? (
+            <span
+              className={`absolute inset-x-0 top-0 truncate px-1 py-0.5 text-center text-[9px] font-bold uppercase tracking-wider ${platformBanner(format)!.className}`}
+            >
+              {platformBanner(format)!.label}
+            </span>
+          ) : null}
         </div>
         <div className="space-y-3">
           <div className="space-y-1.5">
@@ -409,13 +429,32 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="cover">URL de carátula (edición física)</Label>
-        <Input
-          id="cover"
-          value={coverUrl}
-          placeholder="Pega la URL de la carátula exacta de tu edición"
-          onChange={(event) => setCoverUrl(event.target.value)}
-        />
+        <Label htmlFor="cover">Carátula alternativa (edición especial / steelbook)</Label>
+        <div className="flex gap-2">
+          <Input
+            id="cover"
+            value={coverUrl}
+            placeholder="Pega la URL de la carátula exacta de tu edición"
+            onChange={(event) => setCoverUrl(event.target.value)}
+          />
+          <input
+            ref={coverFileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = () => setCoverUrl(String(reader.result ?? ""));
+              reader.readAsDataURL(file);
+            }}
+          />
+          <Button type="button" variant="secondary" onClick={() => coverFileRef.current?.click()}>
+            Subir foto propia
+          </Button>
+        </div>
       </div>
 
 
@@ -441,7 +480,10 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
               <SelectValue placeholder="Selecciona formato" />
             </SelectTrigger>
             <SelectContent>
-              {FORMATS[mediaType].map((option) => (
+              {(mediaType === "game" && availablePlatforms.length > 0
+                ? [...availablePlatforms, ...FORMATS.game.filter((entry) => !availablePlatforms.includes(entry))]
+                : FORMATS[mediaType]
+              ).map((option) => (
                 <SelectItem key={option} value={option}>
                   {option}
                 </SelectItem>

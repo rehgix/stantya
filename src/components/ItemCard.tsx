@@ -1,5 +1,5 @@
 import { STATUS_LABEL, type InventoryRow } from "@/lib/collection";
-import { coverAspect, movieCaseStyle, platformStyle } from "@/lib/physical";
+import { coverAspect, movieCaseStyle, platformBanner } from "@/lib/physical";
 import { StarRating } from "@/components/StarRating";
 
 interface Props {
@@ -11,7 +11,7 @@ interface Props {
 function Cover({ row, className }: { row: InventoryRow; className: string }) {
   const item = row.items;
   const isGame = item?.media_type === "game";
-  const badge = isGame ? platformStyle(row.format ?? item?.platform) : null;
+  const badge = isGame ? platformBanner(row.format ?? item?.platform) : null;
   const caseStyle = item?.media_type === "movie" ? movieCaseStyle(row.format) : null;
 
   return (
@@ -42,7 +42,7 @@ function Cover({ row, className }: { row: InventoryRow; className: string }) {
 
       {badge ? (
         <span
-          className={`absolute left-1.5 top-1.5 rounded-md px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${badge.className}`}
+          className={`absolute inset-x-0 top-0 truncate px-1 py-0.5 text-center text-[9px] font-bold uppercase tracking-wider ${badge.className}`}
         >
           {badge.platform}
         </span>
