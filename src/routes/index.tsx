@@ -15,13 +15,13 @@ import type { InventoryRow, MediaType } from "@/lib/collection";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Vulcam — Tu biblioteca virtual de libros, juegos y películas" },
+      { title: "Stanya — Tu archivo personal de coleccionismo" },
       {
         name: "description",
         content:
           "Cataloga tu colección física en una galería elegante: portadas, sinopsis, formato, estado de lectura o juego, puntuación y notas privadas.",
       },
-      { property: "og:title", content: "Vulcam — Biblioteca virtual personal" },
+      { property: "og:title", content: "Stanya — Archivo personal de coleccionismo" },
       {
         property: "og:description",
         content:
@@ -31,6 +31,7 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
+
   component: Library,
 });
 
@@ -90,9 +91,10 @@ function Library() {
       <header className="sticky top-0 z-30 border-b border-border/60 bg-background/70 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Biblioteca</p>
-            <h1 className="truncate text-lg font-semibold">Mi archivo personal</h1>
+            <h1 className="sr-only">Stanya — Tu archivo personal de coleccionismo</h1>
+            <BrandMark />
           </div>
+
           <div className="flex items-center rounded-xl border border-border p-0.5">
             <button
               type="button"
