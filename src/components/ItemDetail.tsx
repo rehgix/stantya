@@ -9,9 +9,12 @@ import {
   type InventoryRow,
   type Status,
 } from "@/lib/collection";
+import { coverAspect, movieCaseStyle, platformStyle } from "@/lib/physical";
 import { StarRating } from "@/components/StarRating";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
