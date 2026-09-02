@@ -17,6 +17,10 @@ export interface NormalizedResult {
   isbn: string | null;
   /** Etiqueta corta de la edición física ("Tapa dura", "PS5", …) */
   edition: string | null;
+  /** Fuentes que aportaron datos a este resultado ("OpenLib", "Google Books", …) */
+  sources: string[];
+  /** Carátulas alternativas encontradas en otras fuentes */
+  alt_covers: string[];
 }
 
 interface Input {
@@ -46,6 +50,21 @@ function cleanBookCover(raw?: string): string | null {
   return url;
 }
 
+/** fetch con timeout: ninguna API puede bloquear el agregador. */
+async function fetchSafe(input: string | URL, init?: RequestInit & { timeoutMs?: number }): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), init?.timeoutMs ?? 8000);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function isFallbackCover(url: string | null): boolean {
+  return !url || url.includes("placehold.co");
+}
+
 function coverFallback(title: string): string {
   return `https://placehold.co/400x600/1A1D26/6366F1/png?text=${encodeURIComponent(title.slice(0, 40))}`;
 }
@@ -71,10 +90,11 @@ async function fetchGoogleBooks(q: string, key: string | undefined, lang?: strin
   url.searchParams.set("q", q);
   url.searchParams.set("maxResults", "40");
   url.searchParams.set("printType", "books");
+  url.searchParams.set("country", "ES");
   if (lang) url.searchParams.set("langRestrict", lang);
   if (key) url.searchParams.set("key", key);
 
-  const res = await fetch(url);
+  const res = await fetchSafe(url);
   if (!res.ok) throw new Error("Google Books no respondió correctamente");
   const json = (await res.json()) as { items?: GoogleVolume[] };
   return json.items ?? [];
@@ -105,7 +125,7 @@ async function searchOpenLibrary(query: string): Promise<NormalizedResult[]> {
   const cleaned = query.replace(/[\s-]/g, "");
   const q = isBarcode(query) ? `isbn:${cleaned}` : query;
   const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=25`;
-  const res = await fetch(url);
+  const res = await fetchSafe(url);
   if (!res.ok) throw new Error("Open Library no respondió correctamente");
   const json = (await res.json()) as { docs?: OpenLibraryDoc[] };
 
@@ -126,26 +146,84 @@ async function searchOpenLibrary(query: string): Promise<NormalizedResult[]> {
       publisher: doc.publisher?.[0] ?? null,
       isbn: doc.isbn?.[0] ?? null,
       edition: pages > 0 && pages < 200 ? "Bolsillo" : pages >= 500 ? "Tapa dura" : "Tapa blanda",
+      sources: ["OpenLib"],
+      alt_covers: [],
     };
   });
 }
 
+/** Resolución aproximada de una portada, para quedarnos con la mejor de cada fuente. */
+function coverScore(url: string | null): number {
+  if (isFallbackCover(url)) return 0;
+  const value = url!;
+  if (value.includes("covers.openlibrary.org") && value.includes("-L.jpg")) return 40;
+  if (/zoom=3/.test(value)) return 30;
+  if (value.includes("books.google")) return 20;
+  return 25;
+}
+
+/** Fusiona dos fichas de la misma edición conservando lo mejor de cada fuente. */
+function mergeResults(base: NormalizedResult, extra: NormalizedResult): NormalizedResult {
+  const covers = new Set([...base.alt_covers, ...extra.alt_covers]);
+  const better = coverScore(extra.cover_url) > coverScore(base.cover_url) ? extra : base;
+  const worse = better === base ? extra : base;
+  if (!isFallbackCover(worse.cover_url)) covers.add(worse.cover_url!);
+  covers.delete(better.cover_url ?? "");
+
+  const longest = (a: string | null, b: string | null) =>
+    (b?.length ?? 0) > (a?.length ?? 0) ? b : a;
+
+  return {
+    ...base,
+    cover_url: better.cover_url,
+    creator: base.creator && base.creator !== "Desconocido" ? base.creator : extra.creator,
+    release_year: base.release_year ?? extra.release_year,
+    summary: longest(base.summary, extra.summary),
+    publisher: longest(base.publisher, extra.publisher),
+    platform: base.platform ?? extra.platform,
+    isbn: base.isbn ?? extra.isbn,
+    edition: base.edition ?? extra.edition,
+    sources: [...new Set([...base.sources, ...extra.sources])],
+    alt_covers: [...covers],
+  };
+}
+
+/** Agrega varias fuentes desduplicando por huella y fusionando las coincidencias. */
+function aggregate(
+  groups: NormalizedResult[][],
+  fingerprint: (result: NormalizedResult) => string,
+): NormalizedResult[] {
+  const byKey = new Map<string, NormalizedResult>();
+  const order: string[] = [];
+  for (const group of groups) {
+    for (const result of group) {
+      const key = fingerprint(result);
+      const existing = byKey.get(key);
+      if (existing) byKey.set(key, mergeResults(existing, result));
+      else {
+        byKey.set(key, result);
+        order.push(key);
+      }
+    }
+  }
+  return order.map((key) => byKey.get(key)!);
+}
+
+/** Libros: Open Library (ediciones físicas) + Google Books, en paralelo y tolerante a fallos. */
 async function searchBooks(query: string): Promise<NormalizedResult[]> {
   const [openLibrary, google] = await Promise.all([
     searchOpenLibrary(query).catch(() => [] as NormalizedResult[]),
     searchGoogleBooksResults(query).catch(() => [] as NormalizedResult[]),
   ]);
-  const seen = new Set<string>();
-  const merged: NormalizedResult[] = [];
-  for (const result of [...openLibrary, ...google]) {
-    const fingerprint = `${result.title.toLowerCase()}|${result.publisher?.toLowerCase() ?? ""}|${result.release_year ?? ""}`;
-    if (seen.has(fingerprint)) continue;
-    seen.add(fingerprint);
-    merged.push(result);
-  }
+  const merged = aggregate([openLibrary, google], (result) =>
+    result.isbn
+      ? `isbn:${result.isbn.replace(/[\s-]/g, "")}`
+      : `${result.title.toLowerCase().trim()}|${result.publisher?.toLowerCase() ?? ""}|${result.release_year ?? ""}`,
+  );
   if (merged.length === 0) throw new Error("No se encontraron libros para esa búsqueda");
   return merged;
 }
+
 
 async function searchGoogleBooksResults(query: string): Promise<NormalizedResult[]> {
   const key = process.env["GOOGLE_BOOKS_API_KEY"];
@@ -196,6 +274,8 @@ async function searchGoogleBooksResults(query: string): Promise<NormalizedResult
       publisher: info.publisher ?? null,
       isbn,
       edition: bookEdition(info),
+      sources: ["Google Books"],
+      alt_covers: [],
     };
   });
 
@@ -224,7 +304,7 @@ async function searchMovies(query: string): Promise<NormalizedResult[]> {
     url.searchParams.set("include_adult", "false");
     url.searchParams.set("page", "1");
     if (!isV4Token) url.searchParams.set("api_key", key);
-    const res = await fetch(url, { headers });
+    const res = await fetchSafe(url, { headers });
     if (!res.ok) throw new Error("TMDB no respondió correctamente");
     const json = (await res.json()) as { results?: TmdbMovie[] };
     return json.results ?? [];
@@ -239,7 +319,7 @@ async function searchMovies(query: string): Promise<NormalizedResult[]> {
       try {
         const creditsUrl = new URL(`https://api.themoviedb.org/3/movie/${movie.id}/credits`);
         if (!isV4Token) creditsUrl.searchParams.set("api_key", key);
-        const creditsRes = await fetch(creditsUrl, { headers });
+        const creditsRes = await fetchSafe(creditsUrl, { headers });
         if (creditsRes.ok) {
           const credits = (await creditsRes.json()) as { crew?: { job?: string; name?: string }[] };
           director = credits.crew?.find((member) => member.job === "Director")?.name ?? null;
@@ -263,6 +343,8 @@ async function searchMovies(query: string): Promise<NormalizedResult[]> {
         publisher: null,
         isbn: null,
         edition: null,
+        sources: ["TMDB"],
+        alt_covers: [],
       };
     }),
   );
@@ -324,7 +406,7 @@ interface TgdbGame {
 }
 
 /** TheGamesDB: carátula frontal oficial de la caja física por plataforma. */
-async function searchGames(query: string): Promise<NormalizedResult[]> {
+async function searchTheGamesDb(query: string): Promise<NormalizedResult[]> {
   const key = process.env["THEGAMESDB_API_KEY"];
   if (!key) throw new Error("Falta la clave THEGAMESDB_API_KEY en el backend");
 
@@ -332,7 +414,7 @@ async function searchGames(query: string): Promise<NormalizedResult[]> {
     key,
   )}&name=${encodeURIComponent(query)}&fields=overview,genres&include=boxart`;
 
-  const res = await fetch(url);
+  const res = await fetchSafe(url);
   if (!res.ok) throw new Error("TheGamesDB no respondió correctamente");
   const json = (await res.json()) as {
     data?: { games?: TgdbGame[] };
@@ -373,10 +455,97 @@ async function searchGames(query: string): Promise<NormalizedResult[]> {
       publisher: null,
       isbn: null,
       edition: platform,
+      sources: ["TheGamesDB"],
+      alt_covers: [],
     };
   });
 }
 
+
+interface RawgGame {
+  id: number;
+  name?: string;
+  released?: string | null;
+  background_image?: string | null;
+  platforms?: { platform?: { name?: string } }[];
+}
+
+/** RAWG: respaldo para sinopsis, años y arte promocional cuando falta la caja física. */
+async function searchRawg(query: string): Promise<NormalizedResult[]> {
+  const key = process.env["RAWG_API_KEY"];
+  if (!key) return [];
+  const url = new URL("https://api.rawg.io/api/games");
+  url.searchParams.set("key", key);
+  url.searchParams.set("search", query);
+  url.searchParams.set("page_size", "25");
+  url.searchParams.set("search_precise", "false");
+  url.searchParams.set("ordering", "-added");
+
+  const res = await fetchSafe(url);
+  if (!res.ok) throw new Error("RAWG no respondió correctamente");
+  const json = (await res.json()) as { results?: RawgGame[] };
+
+  return (json.results ?? []).map((game) => {
+    const title = game.name || "Sin título";
+    const platform = game.platforms?.[0]?.platform?.name ?? null;
+    return {
+      external_id: `rawg-${game.id}`,
+      title,
+      creator: null,
+      release_year: year(game.released),
+      cover_url: game.background_image ?? coverFallback(title),
+      summary: null,
+      media_type: "game" as const,
+      platform,
+      publisher: null,
+      isbn: null,
+      edition: platform,
+      sources: ["RAWG"],
+      alt_covers: [],
+    };
+  });
+}
+
+/** Videojuegos: TheGamesDB (box art físico, prioritario) + RAWG (respaldo), en paralelo. */
+async function searchGames(query: string): Promise<NormalizedResult[]> {
+  const [tgdb, rawg] = await Promise.all([
+    searchTheGamesDb(query).catch(() => [] as NormalizedResult[]),
+    searchRawg(query).catch(() => [] as NormalizedResult[]),
+  ]);
+
+  // Arte de RAWG indexado por título: sirve de respaldo y de carátula alternativa.
+  const rawgByTitle = new Map<string, NormalizedResult>();
+  for (const game of rawg) {
+    const key = game.title.toLowerCase().trim();
+    if (!rawgByTitle.has(key)) rawgByTitle.set(key, game);
+  }
+
+  const enriched = tgdb.map((game) => {
+    const match = rawgByTitle.get(game.title.toLowerCase().trim());
+    if (!match) return game;
+    const alt = new Set(game.alt_covers);
+    if (!isFallbackCover(match.cover_url)) alt.add(match.cover_url!);
+    const coverMissing = isFallbackCover(game.cover_url);
+    return {
+      ...game,
+      // La caja física de TheGamesDB manda; RAWG solo cubre el hueco.
+      cover_url: coverMissing ? match.cover_url : game.cover_url,
+      alt_covers: coverMissing
+        ? game.alt_covers
+        : [...alt].filter((url) => url !== game.cover_url),
+      summary: game.summary ?? match.summary,
+      release_year: game.release_year ?? match.release_year,
+      sources: [...new Set([...game.sources, ...match.sources])],
+    };
+  });
+
+  const tgdbTitles = new Set(tgdb.map((game) => game.title.toLowerCase().trim()));
+  const onlyRawg = rawg.filter((game) => !tgdbTitles.has(game.title.toLowerCase().trim()));
+
+  const merged = [...enriched, ...onlyRawg];
+  if (merged.length === 0) throw new Error("No se encontraron videojuegos para esa búsqueda");
+  return merged;
+}
 
 export const searchMediaRemote = createServerFn({ method: "POST" })
   .inputValidator((input: Input) => {

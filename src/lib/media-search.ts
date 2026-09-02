@@ -13,6 +13,8 @@ export interface SearchResult {
   publisher: string | null;
   isbn: string | null;
   edition: string | null;
+  sources: string[];
+  altCovers: string[];
 }
 
 
@@ -36,6 +38,8 @@ function toSearchResult(row: NormalizedResult): SearchResult {
     publisher: row.publisher,
     isbn: row.isbn,
     edition: row.edition,
+    sources: row.sources ?? [],
+    altCovers: row.alt_covers ?? [],
   };
 }
 

@@ -53,6 +53,8 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const coverFileRef = useRef<HTMLInputElement>(null);
   const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([]);
+  const [altCovers, setAltCovers] = useState<string[]>([]);
+  const [showAltCovers, setShowAltCovers] = useState(false);
 
 
   const [title, setTitle] = useState("");
@@ -98,6 +100,8 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
     setCreator(result.creator ?? "");
     setYear(result.releaseYear ? String(result.releaseYear) : "");
     setCoverUrl(result.coverUrl ?? "");
+    setAltCovers(result.altCovers.filter((url) => url && url !== result.coverUrl));
+    setShowAltCovers(false);
     setSynopsis(result.synopsis ?? "");
     setExternalId(result.isbn ?? result.externalId);
     setPublisher(result.publisher ?? "");
@@ -317,6 +321,19 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
                         ? [result.publisher, result.releaseYear, result.edition].filter(Boolean).join(", ")
                         : [result.creator, result.releaseYear].filter(Boolean).join(" · ")}
                     </p>
+                    {result.sources.length > 0 ? (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {result.sources.map((source) => (
+                          <span
+                            key={source}
+                            className="rounded border border-border/70 px-1 py-px text-[9px] uppercase tracking-wide text-muted-foreground"
+                          >
+                            {source}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+
                   </button>
                 );
               })}
@@ -462,6 +479,37 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
           </Button>
         </div>
       </div>
+
+      {altCovers.length > 0 ? (
+        <div className="space-y-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="px-0 text-xs"
+            onClick={() => setShowAltCovers((value) => !value)}
+          >
+            {showAltCovers ? "Ocultar carátulas alternativas" : "Ver carátulas alternativas encontradas"}
+          </Button>
+          {showAltCovers ? (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {[coverUrl, ...altCovers].filter(Boolean).map((url) => (
+                <button
+                  key={url}
+                  type="button"
+                  onClick={() => setCoverUrl(url)}
+                  className={`h-24 shrink-0 overflow-hidden rounded-lg border-2 ${
+                    url === coverUrl ? "border-primary" : "border-border"
+                  }`}
+                >
+                  <img src={url} alt="Carátula alternativa" className="h-full w-auto object-cover" />
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
 
 
       <div className="space-y-1.5">
