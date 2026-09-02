@@ -17,13 +17,13 @@ import type { InventoryRow, MediaType } from "@/lib/collection";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Stanya — Tu archivo personal de coleccionismo" },
+      { title: "Stantya — Tu archivo personal de coleccionismo" },
       {
         name: "description",
         content:
           "Cataloga tu colección física en una galería elegante: portadas, sinopsis, formato, estado de lectura o juego, puntuación y notas privadas.",
       },
-      { property: "og:title", content: "Stanya — Archivo personal de coleccionismo" },
+      { property: "og:title", content: "Stantya — Archivo personal de coleccionismo" },
       {
         property: "og:description",
         content:
@@ -93,7 +93,7 @@ function Library() {
       <header className="sticky top-0 z-30 border-b border-border/60 bg-background/70 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
-            <h1 className="sr-only">Stanya — Tu archivo personal de coleccionismo</h1>
+            <h1 className="sr-only">Stantya — Tu archivo personal de coleccionismo</h1>
             <BrandMark />
           </div>
 

@@ -78,11 +78,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Stanya — Tu archivo personal de coleccionismo" },
+      { title: "Stantya — Tu archivo personal de coleccionismo" },
       {
         name: "description",
         content:
-          "Stanya cataloga y organiza tu colección física de libros, videojuegos y películas en una galería elegante.",
+          "Stantya cataloga y organiza tu colección física de libros, videojuegos y películas en una galería elegante.",
       },
 
       { property: "og:type", content: "website" },
