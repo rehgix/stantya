@@ -89,7 +89,65 @@ function bookEdition(info: NonNullable<GoogleVolume["volumeInfo"]>): string | nu
   return "Tapa blanda";
 }
 
+interface OpenLibraryDoc {
+  key?: string;
+  title?: string;
+  author_name?: string[];
+  publisher?: string[];
+  first_publish_year?: number;
+  cover_i?: number;
+  isbn?: string[];
+  number_of_pages_median?: number;
+}
+
+/** Open Library: catálogo abierto de ediciones físicas, sin API key. */
+async function searchOpenLibrary(query: string): Promise<NormalizedResult[]> {
+  const cleaned = query.replace(/[\s-]/g, "");
+  const q = isBarcode(query) ? `isbn:${cleaned}` : query;
+  const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=25`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Open Library no respondió correctamente");
+  const json = (await res.json()) as { docs?: OpenLibraryDoc[] };
+
+  return (json.docs ?? []).map((doc, index) => {
+    const title = doc.title || "Sin título";
+    const pages = doc.number_of_pages_median ?? 0;
+    return {
+      external_id: doc.key ?? `ol-${index}-${title}`,
+      title,
+      creator: doc.author_name?.[0] ?? "Desconocido",
+      release_year: doc.first_publish_year ?? null,
+      cover_url: doc.cover_i
+        ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`
+        : coverFallback(title),
+      summary: null,
+      media_type: "book" as const,
+      platform: doc.publisher?.[0] ?? null,
+      publisher: doc.publisher?.[0] ?? null,
+      isbn: doc.isbn?.[0] ?? null,
+      edition: pages > 0 && pages < 200 ? "Bolsillo" : pages >= 500 ? "Tapa dura" : "Tapa blanda",
+    };
+  });
+}
+
 async function searchBooks(query: string): Promise<NormalizedResult[]> {
+  const [openLibrary, google] = await Promise.all([
+    searchOpenLibrary(query).catch(() => [] as NormalizedResult[]),
+    searchGoogleBooksResults(query).catch(() => [] as NormalizedResult[]),
+  ]);
+  const seen = new Set<string>();
+  const merged: NormalizedResult[] = [];
+  for (const result of [...openLibrary, ...google]) {
+    const fingerprint = `${result.title.toLowerCase()}|${result.publisher?.toLowerCase() ?? ""}|${result.release_year ?? ""}`;
+    if (seen.has(fingerprint)) continue;
+    seen.add(fingerprint);
+    merged.push(result);
+  }
+  if (merged.length === 0) throw new Error("No se encontraron libros para esa búsqueda");
+  return merged;
+}
+
+async function searchGoogleBooksResults(query: string): Promise<NormalizedResult[]> {
   const key = process.env["GOOGLE_BOOKS_API_KEY"];
   const cleaned = query.replace(/[\s-]/g, "");
   const barcode = isBarcode(query);
