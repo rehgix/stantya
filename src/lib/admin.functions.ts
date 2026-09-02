@@ -347,5 +347,5 @@ export const getApiStatus = createServerFn({ method: "GET" })
       }
     }
 
-    return [books, tmdb, rawg];
+    return [books, tmdb, games];
   });
