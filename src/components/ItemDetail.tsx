@@ -11,6 +11,7 @@ import {
 } from "@/lib/collection";
 import { coverAspect, movieCaseStyle, platformStyle } from "@/lib/physical";
 import { StarRating } from "@/components/StarRating";
+import { CoverScanner } from "@/components/CoverScanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
