@@ -66,6 +66,14 @@ export function ItemDetail({ row, onChanged, onClose }: Props) {
 
 
   async function save() {
+    if (item.media_type !== "book" && !format) {
+      toast.error(
+        item.media_type === "movie"
+          ? "Elige el formato físico (VHS, DVD, Blu-ray, 4K UHD o Steelbook)"
+          : "Elige la plataforma física del juego",
+      );
+      return;
+    }
     setSaving(true);
     const { error } = await supabase
       .from("user_inventory")
@@ -100,9 +108,72 @@ export function ItemDetail({ row, onChanged, onClose }: Props) {
   return (
     <div className="space-y-5">
       <div className="grid gap-5 sm:grid-cols-[10rem_1fr]">
-        <div className="mx-auto aspect-[2/3] w-40 overflow-hidden rounded-xl border border-border bg-muted">
-          {item.cover_url ? (
-            <img src={item.cover_url} alt={`Portada de ${item.title}`} className="h-full w-full object-cover" />
+        <div className="space-y-2">
+          <div
+            className={`relative mx-auto w-40 overflow-hidden rounded-xl border border-border bg-muted ${coverAspect(item.media_type)}`}
+          >
+            {coverUrl ? (
+              <img src={coverUrl} alt={`Carátula de ${item.title}`} className="h-full w-full object-cover" />
+            ) : null}
+            {item.media_type === "game" && platformStyle(format || item.platform) ? (
+              <span
+                className={`absolute left-1.5 top-1.5 rounded-md px-1.5 py-0.5 text-[9px] font-semibold uppercase ${platformStyle(format || item.platform)!.className}`}
+              >
+                {format || item.platform}
+              </span>
+            ) : null}
+            {item.media_type === "movie" && movieCaseStyle(format) ? (
+              <>
+                <span className={`absolute inset-y-0 left-0 w-1.5 ${movieCaseStyle(format)!.spine}`} />
+                <span
+                  className={`absolute right-1.5 top-1.5 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase ${movieCaseStyle(format)!.chip}`}
+                >
+                  {format}
+                </span>
+              </>
+            ) : null}
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="w-full"
+            onClick={() => setEditingCover((value) => !value)}
+          >
+            Cambiar carátula
+          </Button>
+          {editingCover ? (
+            <div className="space-y-2">
+              <Input
+                value={coverUrl}
+                placeholder="URL de la carátula de tu edición"
+                onChange={(event) => setCoverUrl(event.target.value)}
+              />
+              <Button type="button" size="sm" className="w-full" onClick={() => void saveCover(coverUrl)}>
+                Guardar carátula
+              </Button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void handleFile(file);
+                  event.target.value = "";
+                }}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="w-full"
+                onClick={() => fileRef.current?.click()}
+              >
+                Subir foto de mi edición
+              </Button>
+            </div>
           ) : null}
         </div>
         <div className="space-y-2">
@@ -114,6 +185,12 @@ export function ItemDetail({ row, onChanged, onClose }: Props) {
             {CREATOR_LABEL[item.media_type]}: {item.creator ?? "—"}
             {item.release_year ? ` · ${item.release_year}` : ""}
           </p>
+          {item.media_type === "book" && item.platform ? (
+            <p className="text-sm text-muted-foreground">
+              Editorial: {item.platform}
+              {format ? ` · ${format}` : ""}
+            </p>
+          ) : null}
           {item.synopsis ? (
             <p className="max-h-40 overflow-y-auto text-sm leading-relaxed text-muted-foreground">
               {item.synopsis}
@@ -121,6 +198,7 @@ export function ItemDetail({ row, onChanged, onClose }: Props) {
           ) : null}
         </div>
       </div>
+
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
