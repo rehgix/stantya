@@ -41,7 +41,8 @@ function year(value?: string | null): number | null {
 function cleanBookCover(raw?: string): string | null {
   if (!raw) return null;
   let url = raw.replace(/^http:\/\//, "https://").replace(/&edge=curl/g, "");
-  if (/zoom=\d/.test(url)) url = url.replace(/zoom=\d/, "zoom=2");
+  if (/zoom=\d/.test(url)) url = url.replace(/zoom=\d/, "zoom=3");
+  else if (url.includes("books.google")) url += (url.includes("?") ? "&" : "?") + "zoom=3";
   return url;
 }
 
@@ -68,7 +69,7 @@ interface GoogleVolume {
 async function fetchGoogleBooks(q: string, key: string | undefined, lang?: string): Promise<GoogleVolume[]> {
   const url = new URL("https://www.googleapis.com/books/v1/volumes");
   url.searchParams.set("q", q);
-  url.searchParams.set("maxResults", "20");
+  url.searchParams.set("maxResults", "40");
   url.searchParams.set("printType", "books");
   if (lang) url.searchParams.set("langRestrict", lang);
   if (key) url.searchParams.set("key", key);
@@ -95,7 +96,12 @@ async function searchBooks(query: string): Promise<NormalizedResult[]> {
   const q = barcode ? `isbn:${cleaned}` : query;
 
   let items = await fetchGoogleBooks(q, key, barcode ? undefined : "es");
-  if (items.length === 0) items = await fetchGoogleBooks(q, key);
+  // Fallback sin langRestrict si la búsqueda en español devuelve pocos resultados.
+  if (items.length < 5) {
+    const global = await fetchGoogleBooks(q, key);
+    const seen = new Set(items.map((item) => item.id));
+    for (const volume of global) if (!seen.has(volume.id)) items.push(volume);
+  }
   if (!barcode) {
     // Segunda pasada por título exacto: trae otras ediciones físicas del mismo libro.
     try {
