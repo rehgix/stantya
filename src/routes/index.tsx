@@ -199,8 +199,6 @@ function Dashboard() {
             </div>
           )}
         </section>
-
-        </section>
       </main>
 
       {adding ? (
