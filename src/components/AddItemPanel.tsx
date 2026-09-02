@@ -476,6 +476,37 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
         </div>
       </div>
 
+      {altCovers.length > 0 ? (
+        <div className="space-y-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="px-0 text-xs"
+            onClick={() => setShowAltCovers((value) => !value)}
+          >
+            {showAltCovers ? "Ocultar carátulas alternativas" : "Ver carátulas alternativas encontradas"}
+          </Button>
+          {showAltCovers ? (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {[coverUrl, ...altCovers].filter(Boolean).map((url) => (
+                <button
+                  key={url}
+                  type="button"
+                  onClick={() => setCoverUrl(url)}
+                  className={`h-24 shrink-0 overflow-hidden rounded-lg border-2 ${
+                    url === coverUrl ? "border-primary" : "border-border"
+                  }`}
+                >
+                  <img src={url} alt="Carátula alternativa" className="h-full w-auto object-cover" />
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+
 
       <div className="space-y-1.5">
         <Label htmlFor="synopsis">Sinopsis</Label>
