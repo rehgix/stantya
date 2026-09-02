@@ -96,8 +96,11 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
     setYear(result.releaseYear ? String(result.releaseYear) : "");
     setCoverUrl(result.coverUrl ?? "");
     setSynopsis(result.synopsis ?? "");
-    setExternalId(result.externalId);
-    if (result.platform) setFormat(result.platform);
+    setExternalId(result.isbn ?? result.externalId);
+    setPublisher(result.publisher ?? "");
+    if (result.edition) setFormat(result.edition);
+    else if (result.platform) setFormat(result.platform);
+
     setResults([]);
     setQuery("");
   }
