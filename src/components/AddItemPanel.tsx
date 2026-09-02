@@ -250,44 +250,51 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
           ) : null}
           {searchError ? <p className="text-xs text-destructive">{searchError}</p> : null}
           {results.length > 0 ? (
-            <div
-              className={`grid max-h-96 gap-3 overflow-y-auto rounded-xl border border-border p-2 ${
-                mediaType === "game" ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-3 sm:grid-cols-4"
-              }`}
-            >
-              {results.map((result, index) => (
-                <button
-                  key={`${result.externalId}-${index}`}
-                  type="button"
-                  onClick={() => apply(result)}
-                  className="group text-left transition-transform hover:scale-[1.03]"
-                >
-                  <div
-                    className={`w-full overflow-hidden rounded-xl border border-border bg-muted ${
-                      mediaType === "game" ? "aspect-[16/9]" : "aspect-[2/3]"
-                    }`}
+            <div className="grid max-h-96 grid-cols-3 gap-3 overflow-y-auto rounded-xl border border-border p-2 sm:grid-cols-4">
+              {results.map((result, index) => {
+                const badge = platformStyle(result.platform);
+                return (
+                  <button
+                    key={`${result.externalId}-${index}`}
+                    type="button"
+                    onClick={() => apply(result)}
+                    className="group text-left transition-transform hover:scale-[1.03]"
                   >
-                    {result.coverUrl ? (
-                      <img
-                        src={result.coverUrl}
-                        alt={`Portada de ${result.title}`}
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center px-2 text-center text-[10px] text-muted-foreground">
-                        Sin portada
-                      </div>
-                    )}
-                  </div>
-                  <p className="mt-1.5 line-clamp-2 text-xs font-medium leading-tight">{result.title}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    {[result.creator, result.releaseYear].filter(Boolean).join(" · ")}
-                  </p>
-                </button>
-              ))}
+                    <div
+                      className={`relative w-full overflow-hidden rounded-xl border border-border bg-muted ${coverAspect(result.mediaType)}`}
+                    >
+                      {result.coverUrl ? (
+                        <img
+                          src={result.coverUrl}
+                          alt={`Carátula de ${result.title}`}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center px-2 text-center text-[10px] text-muted-foreground">
+                          Sin carátula
+                        </div>
+                      )}
+                      {badge && result.mediaType === "game" ? (
+                        <span
+                          className={`absolute left-1.5 top-1.5 rounded-md px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${badge.className}`}
+                        >
+                          {result.platform}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-1.5 line-clamp-2 text-xs font-medium leading-tight">{result.title}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {result.mediaType === "book"
+                        ? [result.publisher, result.releaseYear, result.edition].filter(Boolean).join(", ")
+                        : [result.creator, result.releaseYear].filter(Boolean).join(" · ")}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
           ) : null}
+
 
 
         </TabsContent>
