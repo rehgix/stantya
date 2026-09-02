@@ -5,7 +5,7 @@ import { LayoutGrid, List, Plus, Shield } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/use-session";
-import { AuthPanel } from "@/components/AuthPanel";
+import { Landing } from "@/components/Landing";
 import { BrandMark } from "@/components/BrandMark";
 
 import { AddItemPanel } from "@/components/AddItemPanel";
@@ -97,13 +97,7 @@ function Library() {
     return <div className="grid min-h-screen place-items-center text-muted-foreground">Cargando…</div>;
   }
 
-  if (!user) {
-    return (
-      <main className="grid min-h-screen place-items-center px-4 py-16">
-        <AuthPanel />
-      </main>
-    );
-  }
+  if (!user) return <Landing />;
 
   return (
     <div className="min-h-screen">
