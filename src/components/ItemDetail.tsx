@@ -155,6 +155,11 @@ export function ItemDetail({ row, onChanged, onClose }: Props) {
               <Button type="button" size="sm" className="w-full" onClick={() => void saveCover(coverUrl)}>
                 Guardar carátula
               </Button>
+              <CoverScanner
+                mediaType={item.media_type}
+                size="sm"
+                onScanned={(url) => void saveCover(url)}
+              />
               <input
                 ref={fileRef}
                 type="file"
@@ -177,6 +182,7 @@ export function ItemDetail({ row, onChanged, onClose }: Props) {
                 Subir foto de mi edición
               </Button>
             </div>
+
           ) : null}
         </div>
         <div className="space-y-2">
