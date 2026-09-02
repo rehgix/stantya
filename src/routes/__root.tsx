@@ -78,11 +78,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Vulcam — Colección física valorada" },
+      { title: "Vulcam — Biblioteca virtual personal" },
       {
         name: "description",
         content:
-          "Gestiona y valora tu colección de libros, videojuegos y películas en euros.",
+          "Cataloga y organiza tu colección física de libros, videojuegos y películas en una galería elegante.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

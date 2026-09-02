@@ -16,7 +16,6 @@ export type Database = {
     Tables: {
       items: {
         Row: {
-          base_value_eur: number | null
           cover_url: string | null
           created_at: string
           creator: string | null
@@ -25,10 +24,10 @@ export type Database = {
           media_type: string
           platform: string | null
           release_year: number | null
+          synopsis: string | null
           title: string
         }
         Insert: {
-          base_value_eur?: number | null
           cover_url?: string | null
           created_at?: string
           creator?: string | null
@@ -37,10 +36,10 @@ export type Database = {
           media_type: string
           platform?: string | null
           release_year?: number | null
+          synopsis?: string | null
           title: string
         }
         Update: {
-          base_value_eur?: number | null
           cover_url?: string | null
           created_at?: string
           creator?: string | null
@@ -49,44 +48,42 @@ export type Database = {
           media_type?: string
           platform?: string | null
           release_year?: number | null
+          synopsis?: string | null
           title?: string
         }
         Relationships: []
       }
       user_inventory: {
         Row: {
-          condition: string
           created_at: string
+          format: string | null
           id: string
-          is_wishlist: boolean
           item_id: string
-          market_value_eur: number
           notes: string | null
-          purchase_price_eur: number
+          rating: number | null
+          status: string
           updated_at: string
           user_id: string
         }
         Insert: {
-          condition?: string
           created_at?: string
+          format?: string | null
           id?: string
-          is_wishlist?: boolean
           item_id: string
-          market_value_eur?: number
           notes?: string | null
-          purchase_price_eur?: number
+          rating?: number | null
+          status?: string
           updated_at?: string
           user_id: string
         }
         Update: {
-          condition?: string
           created_at?: string
+          format?: string | null
           id?: string
-          is_wishlist?: boolean
           item_id?: string
-          market_value_eur?: number
           notes?: string | null
-          purchase_price_eur?: number
+          rating?: number | null
+          status?: string
           updated_at?: string
           user_id?: string
         }
