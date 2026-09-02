@@ -53,6 +53,8 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const coverFileRef = useRef<HTMLInputElement>(null);
   const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([]);
+  const [altCovers, setAltCovers] = useState<string[]>([]);
+  const [showAltCovers, setShowAltCovers] = useState(false);
 
 
   const [title, setTitle] = useState("");
@@ -98,6 +100,8 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
     setCreator(result.creator ?? "");
     setYear(result.releaseYear ? String(result.releaseYear) : "");
     setCoverUrl(result.coverUrl ?? "");
+    setAltCovers(result.altCovers.filter((url) => url && url !== result.coverUrl));
+    setShowAltCovers(false);
     setSynopsis(result.synopsis ?? "");
     setExternalId(result.isbn ?? result.externalId);
     setPublisher(result.publisher ?? "");
