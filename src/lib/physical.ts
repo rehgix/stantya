@@ -19,7 +19,7 @@ export function platformStyle(platform: string | null | undefined) {
 export const MOVIE_CASE_STYLE: Record<string, { spine: string; chip: string }> = {
   "4K UHD": { spine: "bg-gradient-to-b from-[#0B0B0B] to-[#2B2110]", chip: "bg-[#D4AF37] text-black" },
   Steelbook: { spine: "bg-gradient-to-b from-zinc-300 to-zinc-500", chip: "bg-zinc-100 text-zinc-900" },
-  "Blu-ray": { spine: "bg-gradient-to-b from-[#0A3DA8] to-[#062col]", chip: "bg-[#0A3DA8] text-white" },
+  "Blu-ray": { spine: "bg-gradient-to-b from-[#0A3DA8] to-[#06255F]", chip: "bg-[#0A3DA8] text-white" },
   DVD: { spine: "bg-gradient-to-b from-[#141414] to-[#333]", chip: "bg-zinc-800 text-zinc-100" },
   VHS: { spine: "bg-gradient-to-b from-[#3B2A17] to-[#1B1309]", chip: "bg-[#6B4B23] text-amber-50" },
   LaserDisc: { spine: "bg-gradient-to-b from-[#20304a] to-[#0d1522]", chip: "bg-[#2B4A7A] text-white" },
