@@ -66,20 +66,24 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
     const term = query.trim();
     if (term.length < 2) {
       setResults([]);
+      setSearchError(null);
       return;
     }
     const timer = setTimeout(async () => {
       setSearching(true);
+      setSearchError(null);
       try {
         setResults(await searchMedia(mediaType, term));
-      } catch {
+      } catch (error) {
         setResults([]);
+        setSearchError(error instanceof Error ? error.message : "No se pudo buscar");
       } finally {
         setSearching(false);
       }
     }, 400);
     return () => clearTimeout(timer);
   }, [query, mediaType]);
+
 
   function apply(result: SearchResult) {
     setMediaType(result.mediaType);
@@ -193,24 +197,25 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2">
-        {MEDIA_TYPES.map((type) => (
+        {MEDIA_TYPES.map((option) => (
           <button
-            key={type}
+            key={option.value}
             type="button"
             onClick={() => {
-              setMediaType(type);
+              setMediaType(option.value);
               setFormat("");
             }}
             className={`rounded-xl border px-4 py-1.5 text-sm transition-colors ${
-              mediaType === type
+              mediaType === option.value
                 ? "border-primary/60 bg-primary/15 text-primary"
                 : "border-border text-muted-foreground hover:text-foreground"
             }`}
           >
-            {MEDIA_LABEL[type]}
+            {option.label}
           </button>
         ))}
       </div>
+
 
       <Tabs defaultValue="search">
         <TabsList className="w-full">
