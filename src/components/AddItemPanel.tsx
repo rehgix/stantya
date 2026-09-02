@@ -1,78 +1,149 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  CONDITIONS,
+  CREATOR_LABEL,
+  FORMATS,
   MEDIA_LABEL,
-  estimateMarketValue,
-  formatEur,
-  type Condition,
+  STATUSES,
   type MediaType,
+  type Status,
 } from "@/lib/collection";
-import { GAME_PLATFORMS, MOVIE_FORMATS, searchBooks, type SearchResult } from "@/lib/media-search";
+import { looksLikeBarcode, searchBooks, searchMedia, type SearchResult } from "@/lib/media-search";
+import { identifyCover } from "@/lib/vision.functions";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { StarRating } from "@/components/StarRating";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+
+interface Props {
+  userId: string;
+  onSaved: () => void;
+  onClose: () => void;
+}
 
 const MEDIA_TYPES: MediaType[] = ["book", "game", "movie"];
 
-export function AddItemPanel({
-  userId,
-  onClose,
-  onSaved,
-}: {
-  userId: string;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
+export function AddItemPanel({ userId, onSaved, onClose }: Props) {
   const [mediaType, setMediaType] = useState<MediaType>("book");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
-  const [selected, setSelected] = useState<SearchResult | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [barcode, setBarcode] = useState("");
+  const [identifying, setIdentifying] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const [title, setTitle] = useState("");
   const [creator, setCreator] = useState("");
   const [year, setYear] = useState("");
-  const [platform, setPlatform] = useState("");
-  const [condition, setCondition] = useState<Condition>("muy_bueno");
-  const [price, setPrice] = useState("");
-  const [wishlist, setWishlist] = useState(false);
+  const [coverUrl, setCoverUrl] = useState("");
+  const [synopsis, setSynopsis] = useState("");
+  const [externalId, setExternalId] = useState<string | null>(null);
+  const [format, setFormat] = useState<string>("");
+  const [status, setStatus] = useState<Status>("pendiente");
+  const [rating, setRating] = useState(0);
+  const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (mediaType !== "book" || query.trim().length < 3) {
+    const term = query.trim();
+    if (term.length < 2) {
       setResults([]);
       return;
     }
-    const handle = setTimeout(() => {
+    const timer = setTimeout(async () => {
       setSearching(true);
-      searchBooks(query)
-        .then(setResults)
-        .catch(() => toast.error("No se pudo buscar en Google Books"))
-        .finally(() => setSearching(false));
+      try {
+        setResults(await searchMedia(mediaType, term));
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
+      }
     }, 400);
-    return () => clearTimeout(handle);
+    return () => clearTimeout(timer);
   }, [query, mediaType]);
 
-  function pick(result: SearchResult) {
-    setSelected(result);
+  function apply(result: SearchResult) {
+    setMediaType(result.mediaType);
     setTitle(result.title);
     setCreator(result.creator ?? "");
     setYear(result.releaseYear ? String(result.releaseYear) : "");
+    setCoverUrl(result.coverUrl ?? "");
+    setSynopsis(result.synopsis ?? "");
+    setExternalId(result.externalId);
+    if (result.platform) setFormat(result.platform);
     setResults([]);
-    setQuery(result.title);
+    setQuery("");
   }
 
-  const purchasePrice = Number(price.replace(",", ".")) || 0;
-  const estimate = estimateMarketValue({
-    mediaType,
-    releaseYear: year ? Number(year) : null,
-    condition,
-    baseValue: selected?.baseValue ?? null,
-    purchasePrice,
-  });
+  async function lookupBarcode(code: string) {
+    const clean = code.replace(/[\s-]/g, "");
+    setBarcode(clean);
+    setScanning(false);
+    if (!looksLikeBarcode(clean)) {
+      toast.error("El código no parece un EAN/ISBN válido");
+      return;
+    }
+    try {
+      const found = await searchBooks(clean);
+      if (found.length === 0) {
+        toast.error("Sin resultados para ese código. Completa la ficha a mano.");
+        return;
+      }
+      apply(found[0]!);
+      toast.success("Obra encontrada por código");
+    } catch {
+      toast.error("No se pudo consultar el código");
+    }
+  }
+
+  async function handlePhoto(file: File) {
+    if (file.size > 5_000_000) {
+      toast.error("La imagen supera los 5 MB");
+      return;
+    }
+    setIdentifying(true);
+    try {
+      const image = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("read"));
+        reader.readAsDataURL(file);
+      });
+      const guess = await identifyCover({ data: { image } });
+      if (guess.mediaType) setMediaType(guess.mediaType);
+      if (guess.title) {
+        setTitle(guess.title);
+        setQuery(guess.title);
+        toast.success(`Portada identificada: ${guess.title}`);
+      } else {
+        toast.error("No se reconoció la portada");
+      }
+      if (guess.creator) setCreator(guess.creator);
+      if (guess.releaseYear) setYear(String(guess.releaseYear));
+      setCoverUrl(image);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo identificar la portada");
+    } finally {
+      setIdentifying(false);
+    }
+  }
 
   async function save() {
     if (!title.trim()) {
-      toast.error("Indica el título del artículo");
+      toast.error("El título es obligatorio");
       return;
     }
     setSaving(true);
@@ -84,10 +155,10 @@ export function AddItemPanel({
           title: title.trim(),
           creator: creator.trim() || null,
           release_year: year ? Number(year) : null,
-          cover_url: selected?.coverUrl ?? null,
-          platform: platform || null,
-          external_id: selected?.externalId ?? null,
-          base_value_eur: selected?.baseValue ?? null,
+          cover_url: coverUrl || null,
+          platform: format || null,
+          external_id: externalId ?? (barcode || null),
+          synopsis: synopsis.trim() || null,
         })
         .select("id")
         .single();
@@ -96,225 +167,252 @@ export function AddItemPanel({
       const { error: invError } = await supabase.from("user_inventory").insert({
         user_id: userId,
         item_id: item.id,
-        condition,
-        purchase_price_eur: wishlist ? 0 : purchasePrice,
-        market_value_eur: estimate,
-        is_wishlist: wishlist,
+        format: format || null,
+        status,
+        rating: rating > 0 ? rating : null,
+        notes: notes.trim() || null,
       });
       if (invError) throw invError;
 
-      toast.success(`${title.trim()} añadido a tu colección`);
+      toast.success("Añadido a tu biblioteca");
       onSaved();
       onClose();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo guardar el artículo");
+      toast.error(error instanceof Error ? error.message : "No se pudo guardar");
     } finally {
       setSaving(false);
     }
   }
 
-  const inputClass =
-    "bg-background ring-line placeholder:text-muted-foreground focus:ring-ring w-full rounded-lg px-3 py-2.5 font-mono text-sm ring-1 focus:outline-none";
-
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50">
-      <div className="mx-auto max-w-6xl px-5 pb-5 sm:px-8">
-        <div className="rise bg-card ring-line max-h-[85vh] overflow-y-auto rounded-2xl p-4 shadow-2xl shadow-black/40 ring-1 sm:p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-display text-pretty text-base leading-none font-semibold">
-              Añadir a la colección
-            </h2>
-            <button
-              onClick={onClose}
-              className="font-mono text-muted-foreground hover:text-foreground text-[10px] tracking-[0.15em] uppercase"
-            >
-              Cerrar
-            </button>
-          </div>
+    <div className="space-y-6">
+      <div className="flex flex-wrap gap-2">
+        {MEDIA_TYPES.map((type) => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => {
+              setMediaType(type);
+              setFormat("");
+            }}
+            className={`rounded-xl border px-4 py-1.5 text-sm transition-colors ${
+              mediaType === type
+                ? "border-primary/60 bg-primary/15 text-primary"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {MEDIA_LABEL[type]}
+          </button>
+        ))}
+      </div>
 
-          <div className="no-scrollbar mb-3 flex gap-2 overflow-x-auto">
-            {MEDIA_TYPES.map((type) => (
-              <button
-                key={type}
-                onClick={() => {
-                  setMediaType(type);
-                  setSelected(null);
-                  setPlatform("");
-                }}
-                className={`font-display shrink-0 px-4 py-2 text-sm ${
-                  mediaType === type
-                    ? "bg-primary font-semibold text-primary-foreground"
-                    : "bg-background ring-line font-medium ring-1"
-                }`}
-              >
-                <span className="inline-block">{MEDIA_LABEL[type]}</span>
-              </button>
-            ))}
-          </div>
+      <Tabs defaultValue="search">
+        <TabsList className="w-full">
+          <TabsTrigger value="search" className="flex-1">
+            Buscador
+          </TabsTrigger>
+          <TabsTrigger value="barcode" className="flex-1">
+            Código
+          </TabsTrigger>
+          <TabsTrigger value="cover" className="flex-1">
+            Portada
+          </TabsTrigger>
+        </TabsList>
 
-          {mediaType === "book" ? (
-            <>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value);
-                    setSelected(null);
-                  }}
-                  placeholder="Buscar por título o ISBN…"
-                  className={`${inputClass} py-3 pr-20`}
-                />
-                <span className="font-display absolute top-1/2 right-3 -translate-y-1/2 rounded-sm bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground">
-                  {searching ? "…" : "Google Books"}
-                </span>
-              </div>
-              {results.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {results.slice(0, 6).map((result) => (
-                    <button
-                      key={result.externalId}
-                      onClick={() => pick(result)}
-                      className="bg-background ring-line text-foreground hover:ring-primary/50 rounded-full px-2.5 py-1 font-mono text-[11px] ring-1"
-                    >
-                      {result.title}
-                      {result.releaseYear ? ` · ${result.releaseYear}` : ""}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
+        <TabsContent value="search" className="space-y-3 pt-4">
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={
+              mediaType === "book"
+                ? "Título o ISBN…"
+                : mediaType === "game"
+                  ? "Título, estudio o plataforma…"
+                  : "Título o director…"
+            }
+          />
+          {searching ? <p className="text-xs text-muted-foreground">Buscando…</p> : null}
+          {results.length > 0 ? (
+            <ul className="max-h-72 space-y-1 overflow-y-auto rounded-xl border border-border p-1">
+              {results.slice(0, 8).map((result, index) => (
+                <li key={`${result.externalId}-${index}`}>
+                  <button
+                    type="button"
+                    onClick={() => apply(result)}
+                    className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-muted/50"
+                  >
+                    <div className="h-14 w-10 shrink-0 overflow-hidden rounded bg-muted">
+                      {result.coverUrl ? (
+                        <img
+                          src={result.coverUrl}
+                          alt={`Portada de ${result.title}`}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : null}
+                    </div>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{result.title}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {[result.creator, result.releaseYear, result.platform]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </TabsContent>
+
+        <TabsContent value="barcode" className="space-y-3 pt-4">
+          {scanning ? (
+            <BarcodeScanner onDetected={lookupBarcode} onClose={() => setScanning(false)} />
           ) : (
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={
-                mediaType === "game" ? "Título del videojuego" : "Título de la película"
-              }
-              className={`${inputClass} py-3`}
-            />
+            <Button type="button" variant="secondary" className="w-full" onClick={() => setScanning(true)}>
+              Escanear con la cámara
+            </Button>
           )}
-
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            {mediaType === "book" && (
-              <div className="col-span-2">
-                <label className="font-mono text-muted-foreground text-[10px] tracking-[0.15em] uppercase">
-                  Título
-                </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className={`${inputClass} mt-1.5`}
-                />
-              </div>
-            )}
-
-            <div>
-              <label className="font-mono text-muted-foreground text-[10px] tracking-[0.15em] uppercase">
-                {mediaType === "book" ? "Autor" : mediaType === "game" ? "Estudio" : "Director"}
-              </label>
-              <input
-                type="text"
-                value={creator}
-                onChange={(e) => setCreator(e.target.value)}
-                className={`${inputClass} mt-1.5`}
-              />
-            </div>
-
-            <div>
-              <label className="font-mono text-muted-foreground text-[10px] tracking-[0.15em] uppercase">
-                Año
-              </label>
-              <input
-                type="number"
-                value={year}
-                onChange={(e) => setYear(e.target.value)}
-                placeholder="1998"
-                className={`${inputClass} mt-1.5`}
-              />
-            </div>
-
-            {mediaType !== "book" && (
-              <div className="col-span-2">
-                <label className="font-mono text-muted-foreground text-[10px] tracking-[0.15em] uppercase">
-                  {mediaType === "game" ? "Plataforma" : "Formato"}
-                </label>
-                <select
-                  value={platform}
-                  onChange={(e) => setPlatform(e.target.value)}
-                  className={`${inputClass} font-display mt-1.5`}
-                >
-                  <option value="">Sin especificar</option>
-                  {(mediaType === "game" ? GAME_PLATFORMS : MOVIE_FORMATS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <div>
-              <label className="font-mono text-muted-foreground text-[10px] tracking-[0.15em] uppercase">
-                Estado de conservación
-              </label>
-              <select
-                value={condition}
-                onChange={(e) => setCondition(e.target.value as Condition)}
-                className={`${inputClass} font-display mt-1.5`}
-              >
-                {CONDITIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="font-mono text-muted-foreground text-[10px] tracking-[0.15em] uppercase">
-                Precio pagado (€)
-              </label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="32,00"
-                disabled={wishlist}
-                className={`${inputClass} mt-1.5 text-primary disabled:opacity-50`}
-              />
-            </div>
-          </div>
-
-          <label className="mt-3 flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={wishlist}
-              onChange={(e) => setWishlist(e.target.checked)}
-              className="size-3.5 accent-[oklch(0.951_0.213_118)]"
+          <div className="flex gap-2">
+            <Input
+              value={barcode}
+              onChange={(event) => setBarcode(event.target.value)}
+              placeholder="EAN / ISBN"
+              inputMode="numeric"
             />
-            Guardar en la lista de deseos (aún no lo tengo)
-          </label>
+            <Button type="button" onClick={() => lookupBarcode(barcode)}>
+              Buscar
+            </Button>
+          </div>
+        </TabsContent>
 
-          <div className="border-line mt-4 flex items-center justify-between border-t pt-4">
-            <div className="font-mono text-muted-foreground text-[11px]">
-              <span className="block">Valor de mercado estimado</span>
-              <span className="text-foreground text-base font-semibold">{formatEur(estimate)}</span>
+        <TabsContent value="cover" className="space-y-3 pt-4">
+          <p className="text-sm text-muted-foreground">
+            Haz una foto de la carátula o sube una imagen para identificar la obra.
+          </p>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void handlePhoto(file);
+              event.target.value = "";
+            }}
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full"
+            disabled={identifying}
+            onClick={() => fileRef.current?.click()}
+          >
+            {identifying ? "Identificando…" : "Capturar o subir portada"}
+          </Button>
+        </TabsContent>
+      </Tabs>
+
+      <div className="grid gap-4 sm:grid-cols-[7rem_1fr]">
+        <div className="mx-auto aspect-[2/3] w-28 overflow-hidden rounded-xl border border-border bg-muted">
+          {coverUrl ? (
+            <img src={coverUrl} alt={`Portada de ${title || "la obra"}`} className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+              Sin portada
             </div>
-            <button
-              onClick={save}
-              disabled={saving}
-              className="font-display rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-60"
-            >
-              <span className="inline-block">
-                {saving ? "Guardando…" : "Guardar artículo"}
-              </span>
-            </button>
+          )}
+        </div>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="title">Título</Label>
+            <Input id="title" value={title} onChange={(event) => setTitle(event.target.value)} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="creator">{CREATOR_LABEL[mediaType]}</Label>
+              <Input id="creator" value={creator} onChange={(event) => setCreator(event.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="year">Año</Label>
+              <Input
+                id="year"
+                value={year}
+                inputMode="numeric"
+                onChange={(event) => setYear(event.target.value.replace(/\D/g, "").slice(0, 4))}
+              />
+            </div>
           </div>
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="cover">URL de portada</Label>
+        <Input id="cover" value={coverUrl} onChange={(event) => setCoverUrl(event.target.value)} />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="synopsis">Sinopsis</Label>
+        <Textarea
+          id="synopsis"
+          rows={4}
+          value={synopsis}
+          onChange={(event) => setSynopsis(event.target.value)}
+        />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label>Formato físico</Label>
+          <Select value={format} onValueChange={setFormat}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecciona formato" />
+            </SelectTrigger>
+            <SelectContent>
+              {FORMATS[mediaType].map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Estado personal</Label>
+          <Select value={status} onValueChange={(value) => setStatus(value as Status)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUSES.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Puntuación</Label>
+        <StarRating value={rating} onChange={setRating} />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="notes">Notas privadas</Label>
+        <Textarea id="notes" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} />
+      </div>
+
+      <div className="flex gap-2">
+        <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button type="button" className="flex-1" disabled={saving} onClick={save}>
+          {saving ? "Guardando…" : "Añadir a la biblioteca"}
+        </Button>
       </div>
     </div>
   );
