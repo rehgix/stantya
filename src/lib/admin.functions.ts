@@ -310,7 +310,7 @@ export const getApiStatus = createServerFn({ method: "GET" })
 
     const booksKey = process.env["GOOGLE_BOOKS_API_KEY"];
     const tmdbKey = process.env["TMDB_API_KEY"];
-    const rawgKey = process.env["RAWG_API_KEY"];
+    const gamesKey = process.env["THEGAMESDB_API_KEY"];
 
     const booksUrl = `https://www.googleapis.com/books/v1/volumes?q=test&maxResults=1${
       booksKey ? `&key=${booksKey}` : ""
@@ -319,11 +319,13 @@ export const getApiStatus = createServerFn({ method: "GET" })
     const tmdbUrl = tmdbKey
       ? `https://api.themoviedb.org/3/search/movie?query=test${tmdbIsV4 ? "" : `&api_key=${tmdbKey}`}`
       : null;
-    const rawgUrl = rawgKey ? `https://api.rawg.io/api/games?key=${rawgKey}&page_size=1` : null;
+    const gamesUrl = gamesKey
+      ? `https://api.thegamesdb.net/v1/Games/ByGameName?apikey=${gamesKey}&name=mario`
+      : null;
 
-    const [books, rawg] = await Promise.all([
+    const [books, games] = await Promise.all([
       ping("Google Books", booksUrl, true),
-      ping("RAWG", rawgUrl, Boolean(rawgKey)),
+      ping("TheGamesDB", gamesUrl, Boolean(gamesKey)),
     ]);
 
     let tmdb: ApiStatus;
