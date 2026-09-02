@@ -268,107 +268,113 @@ async function searchMovies(query: string): Promise<NormalizedResult[]> {
   );
 }
 
-/** Normaliza el nombre de plataforma de RAWG a las etiquetas físicas de la app. */
-const PLATFORM_ALIASES: [RegExp, string][] = [
-  [/playstation 5/i, "PS5"],
-  [/playstation 4/i, "PS4"],
-  [/playstation 3/i, "PS3"],
-  [/playstation 2/i, "PS2"],
-  [/playstation$|playstation 1|psx/i, "PS1"],
-  [/psp|playstation vita/i, "PS Vita"],
-  [/nintendo switch/i, "Nintendo Switch"],
-  [/wii u/i, "Wii U"],
-  [/^wii/i, "Wii"],
-  [/gamecube/i, "GameCube"],
-  [/nintendo 64/i, "Nintendo 64"],
-  [/nintendo 3ds/i, "Nintendo 3DS"],
-  [/nintendo ds/i, "Nintendo DS"],
-  [/snes|super nintendo/i, "SNES"],
-  [/game boy/i, "Game Boy"],
-  [/nes|nintendo entertainment/i, "NES"],
-  [/xbox series/i, "Xbox Series"],
-  [/xbox one/i, "Xbox One"],
-  [/xbox 360/i, "Xbox 360"],
-  [/^xbox$/i, "Xbox"],
-  [/genesis|mega drive/i, "Mega Drive"],
-  [/dreamcast/i, "Dreamcast"],
-  [/saturn/i, "Saturn"],
-  [/pc|windows|linux|macos/i, "PC"],
-];
+/** IDs de plataforma de TheGamesDB → etiquetas físicas de la app. */
+const TGDB_PLATFORMS: Record<number, string> = {
+  3: "SNES",
+  4: "Nintendo 64",
+  6: "NES",
+  7: "PS1",
+  8: "PS2",
+  9: "PS3",
+  10: "Nintendo Switch",
+  11: "Xbox",
+  14: "Xbox 360",
+  16: "Dreamcast",
+  18: "Mega Drive",
+  20: "GameCube",
+  21: "Game Boy",
+  22: "Game Boy Advance",
+  23: "Saturn",
+  24: "Nintendo DS",
+  4912: "Nintendo 3DS",
+  4919: "PS4",
+  4920: "Xbox One",
+  4971: "Nintendo Switch",
+  4980: "PS Vita",
+  4981: "PS5",
+  4912000: "PC",
+  1: "PC",
+  9999: "Xbox Series",
+  4982: "Xbox Series",
+  38: "Wii U",
+  9998: "Wii",
+};
 
-function canonicalPlatform(name: string): string | null {
-  for (const [pattern, label] of PLATFORM_ALIASES) if (pattern.test(name)) return label;
-  return null;
+function tgdbPlatformLabel(id: number | undefined, fallbackName?: string | null): string | null {
+  if (id && TGDB_PLATFORMS[id]) return TGDB_PLATFORMS[id]!;
+  if (fallbackName) return fallbackName;
+  return id ? `Plataforma ${id}` : null;
 }
 
-/** Recorta la imagen de RAWG a una proporción cercana a una carátula frontal. */
-function gameBoxArt(raw: string | null | undefined, title: string): string {
-  if (!raw) return coverFallback(title);
-  const url = raw.replace(/^http:\/\//, "https://");
-  return url.replace("/media/games/", "/media/crop/600/400/games/");
+interface TgdbBoxart {
+  id?: number;
+  type?: string;
+  side?: string;
+  filename?: string;
 }
 
+interface TgdbGame {
+  id: number;
+  game_title?: string;
+  platform?: number;
+  release_date?: string;
+  overview?: string;
+  developers?: number[];
+  publishers?: number[];
+}
+
+/** TheGamesDB: carátula frontal oficial de la caja física por plataforma. */
 async function searchGames(query: string): Promise<NormalizedResult[]> {
-  const key = process.env["RAWG_API_KEY"];
-  if (!key) throw new Error("Falta la clave RAWG_API_KEY en el backend");
+  const key = process.env["THEGAMESDB_API_KEY"];
+  if (!key) throw new Error("Falta la clave THEGAMESDB_API_KEY en el backend");
 
-  const url = new URL("https://api.rawg.io/api/games");
-  url.searchParams.set("key", key);
-  url.searchParams.set("search", query);
-  url.searchParams.set("search_precise", "false");
-  url.searchParams.set("page_size", "25");
-  url.searchParams.set("ordering", "-added");
+  const url = `https://api.thegamesdb.net/v1/Games/ByGameName?apikey=${encodeURIComponent(
+    key,
+  )}&name=${encodeURIComponent(query)}&fields=overview,genres&include=boxart`;
 
   const res = await fetch(url);
-  if (!res.ok) throw new Error("RAWG no respondió correctamente");
+  if (!res.ok) throw new Error("TheGamesDB no respondió correctamente");
   const json = (await res.json()) as {
-    results?: {
-      id: number;
-      name?: string;
-      released?: string;
-      background_image?: string | null;
-      platforms?: { platform?: { name?: string } }[];
-      developers?: { name?: string }[];
-      publishers?: { name?: string }[];
-    }[];
+    data?: { games?: TgdbGame[] };
+    include?: {
+      boxart?: {
+        base_url?: Record<string, string>;
+        data?: Record<string, TgdbBoxart[]>;
+      };
+      platform?: { data?: Record<string, { name?: string }> };
+    };
   };
 
-  const results: NormalizedResult[] = [];
-  for (const game of json.results ?? []) {
-    const title = game.name || "Sin título";
-    const cover = gameBoxArt(game.background_image, title);
-    const base = {
+  const games = json.data?.games ?? [];
+  const boxartData = json.include?.boxart?.data ?? {};
+  const baseUrls = json.include?.boxart?.base_url ?? {};
+  const base = baseUrls["large"] ?? baseUrls["medium"] ?? baseUrls["original"] ?? "";
+  const platformNames = json.include?.platform?.data ?? {};
+
+  return games.slice(0, 40).map((game) => {
+    const title = game.game_title || "Sin título";
+    const images = boxartData[String(game.id)] ?? [];
+    const front = images.find((image) => image.side === "front") ?? images[0];
+    const cover = front?.filename && base ? `${base}${front.filename}` : coverFallback(title);
+    const platform = tgdbPlatformLabel(
+      game.platform,
+      platformNames[String(game.platform)]?.name ?? null,
+    );
+
+    return {
+      external_id: `tgdb-${game.id}`,
       title,
-      creator: game.developers?.[0]?.name ?? game.publishers?.[0]?.name ?? null,
-      release_year: year(game.released),
+      creator: null,
+      release_year: year(game.release_date),
       cover_url: cover,
-      summary: null,
+      summary: game.overview || null,
       media_type: "game" as const,
-      publisher: game.publishers?.[0]?.name ?? null,
+      platform,
+      publisher: null,
       isbn: null,
+      edition: platform,
     };
-
-    // Una entrada por edición física de consola, para elegir la versión concreta.
-    const platforms: string[] = [];
-    for (const entry of game.platforms ?? []) {
-      const label = canonicalPlatform(entry.platform?.name ?? "");
-      if (label && !platforms.includes(label)) platforms.push(label);
-    }
-
-    if (platforms.length === 0) {
-      results.push({ ...base, external_id: `rawg-${game.id}`, platform: null, edition: null });
-      continue;
-    }
-    for (const platform of platforms.slice(0, 6)) {
-      results.push({
-        ...base,
-        external_id: `rawg-${game.id}-${platform.toLowerCase().replace(/\s+/g, "-")}`,
-        platform,
-        edition: platform,
-      });
-    }
-  }
-  return results.slice(0, 60);
+  });
 }
 
 
