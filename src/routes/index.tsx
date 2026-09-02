@@ -1,7 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { LayoutGrid, List, Plus } from "lucide-react";
+import { LayoutGrid, List, Plus, Shield } from "lucide-react";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/use-session";
 import { AuthPanel } from "@/components/AuthPanel";
@@ -53,6 +54,22 @@ function Library() {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [adding, setAdding] = useState(false);
   const [selected, setSelected] = useState<InventoryRow | null>(null);
+
+  const { data: isAdmin = false } = useQuery({
+    queryKey: ["my-admin-role", user?.id],
+    enabled: Boolean(user),
+    queryFn: async (): Promise<boolean> => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user!.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      return Boolean(data);
+    },
+  });
+
+
 
   const { data: rows = [], refetch } = useQuery({
     queryKey: ["inventory", user?.id],
@@ -115,9 +132,17 @@ function Library() {
               <List className="h-4 w-4" />
             </button>
           </div>
+          {isAdmin ? (
+            <Button asChild size="sm" variant="ghost" title="Panel de administración">
+              <Link to="/admin">
+                <Shield className="h-4 w-4" />
+              </Link>
+            </Button>
+          ) : null}
           <Button size="sm" onClick={() => setAdding(true)}>
             <Plus className="mr-1 h-4 w-4" /> Añadir
           </Button>
+
         </div>
         <div className="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 pb-3">
           {FILTERS.map((option) => (
