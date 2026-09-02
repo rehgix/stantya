@@ -10,7 +10,11 @@ export interface SearchResult {
   coverUrl: string | null;
   platform: string | null;
   synopsis: string | null;
+  publisher: string | null;
+  isbn: string | null;
+  edition: string | null;
 }
+
 
 const ISBN_RE = /^(97(8|9))?\d{9}(\d|X)$/i;
 
@@ -29,8 +33,12 @@ function toSearchResult(row: NormalizedResult): SearchResult {
     coverUrl: row.cover_url,
     platform: row.platform,
     synopsis: row.summary,
+    publisher: row.publisher,
+    isbn: row.isbn,
+    edition: row.edition,
   };
 }
+
 
 /** Consulta la función de servidor segura que habla con Google Books, TMDB y RAWG. */
 export async function searchMedia(mediaType: MediaType, query: string): Promise<SearchResult[]> {

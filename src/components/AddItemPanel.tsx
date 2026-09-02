@@ -10,7 +10,9 @@ import {
   type Status,
 } from "@/lib/collection";
 import { looksLikeBarcode, searchBooks, searchMedia, type SearchResult } from "@/lib/media-search";
+import { coverAspect, platformStyle } from "@/lib/physical";
 import { identifyCover } from "@/lib/vision.functions";
+
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { StarRating } from "@/components/StarRating";
 import { Button } from "@/components/ui/button";
@@ -55,8 +57,10 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
   const [year, setYear] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
   const [synopsis, setSynopsis] = useState("");
+  const [publisher, setPublisher] = useState("");
   const [externalId, setExternalId] = useState<string | null>(null);
   const [format, setFormat] = useState<string>("");
+
   const [status, setStatus] = useState<Status>("pendiente");
   const [rating, setRating] = useState(0);
   const [notes, setNotes] = useState("");
@@ -92,8 +96,11 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
     setYear(result.releaseYear ? String(result.releaseYear) : "");
     setCoverUrl(result.coverUrl ?? "");
     setSynopsis(result.synopsis ?? "");
-    setExternalId(result.externalId);
-    if (result.platform) setFormat(result.platform);
+    setExternalId(result.isbn ?? result.externalId);
+    setPublisher(result.publisher ?? "");
+    if (result.edition) setFormat(result.edition);
+    else if (result.platform) setFormat(result.platform);
+
     setResults([]);
     setQuery("");
   }
@@ -156,6 +163,14 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
       toast.error("El título es obligatorio");
       return;
     }
+    if (mediaType === "movie" && !format) {
+      toast.error("Elige el formato físico de la película (VHS, DVD, Blu-ray, 4K UHD o Steelbook)");
+      return;
+    }
+    if (mediaType === "game" && !format) {
+      toast.error("Elige la plataforma física del juego");
+      return;
+    }
     setSaving(true);
     try {
       const { data: item, error: itemError } = await supabase
@@ -166,7 +181,8 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
           creator: creator.trim() || null,
           release_year: year ? Number(year) : null,
           cover_url: coverUrl || null,
-          platform: format || null,
+          platform: (mediaType === "book" ? publisher.trim() : format) || null,
+
           external_id: externalId ?? (barcode || null),
           synopsis: synopsis.trim() || null,
         })
@@ -250,44 +266,51 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
           ) : null}
           {searchError ? <p className="text-xs text-destructive">{searchError}</p> : null}
           {results.length > 0 ? (
-            <div
-              className={`grid max-h-96 gap-3 overflow-y-auto rounded-xl border border-border p-2 ${
-                mediaType === "game" ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-3 sm:grid-cols-4"
-              }`}
-            >
-              {results.map((result, index) => (
-                <button
-                  key={`${result.externalId}-${index}`}
-                  type="button"
-                  onClick={() => apply(result)}
-                  className="group text-left transition-transform hover:scale-[1.03]"
-                >
-                  <div
-                    className={`w-full overflow-hidden rounded-xl border border-border bg-muted ${
-                      mediaType === "game" ? "aspect-[16/9]" : "aspect-[2/3]"
-                    }`}
+            <div className="grid max-h-96 grid-cols-3 gap-3 overflow-y-auto rounded-xl border border-border p-2 sm:grid-cols-4">
+              {results.map((result, index) => {
+                const badge = platformStyle(result.platform);
+                return (
+                  <button
+                    key={`${result.externalId}-${index}`}
+                    type="button"
+                    onClick={() => apply(result)}
+                    className="group text-left transition-transform hover:scale-[1.03]"
                   >
-                    {result.coverUrl ? (
-                      <img
-                        src={result.coverUrl}
-                        alt={`Portada de ${result.title}`}
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center px-2 text-center text-[10px] text-muted-foreground">
-                        Sin portada
-                      </div>
-                    )}
-                  </div>
-                  <p className="mt-1.5 line-clamp-2 text-xs font-medium leading-tight">{result.title}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    {[result.creator, result.releaseYear].filter(Boolean).join(" · ")}
-                  </p>
-                </button>
-              ))}
+                    <div
+                      className={`relative w-full overflow-hidden rounded-xl border border-border bg-muted ${coverAspect(result.mediaType)}`}
+                    >
+                      {result.coverUrl ? (
+                        <img
+                          src={result.coverUrl}
+                          alt={`Carátula de ${result.title}`}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center px-2 text-center text-[10px] text-muted-foreground">
+                          Sin carátula
+                        </div>
+                      )}
+                      {badge && result.mediaType === "game" ? (
+                        <span
+                          className={`absolute left-1.5 top-1.5 rounded-md px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${badge.className}`}
+                        >
+                          {result.platform}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-1.5 line-clamp-2 text-xs font-medium leading-tight">{result.title}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {result.mediaType === "book"
+                        ? [result.publisher, result.releaseYear, result.edition].filter(Boolean).join(", ")
+                        : [result.creator, result.releaseYear].filter(Boolean).join(" · ")}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
           ) : null}
+
 
 
         </TabsContent>
@@ -371,13 +394,30 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
               />
             </div>
           </div>
+          {mediaType === "book" ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="publisher">Editorial</Label>
+              <Input
+                id="publisher"
+                value={publisher}
+                placeholder="Ej. Minotauro"
+                onChange={(event) => setPublisher(event.target.value)}
+              />
+            </div>
+          ) : null}
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="cover">URL de portada</Label>
-        <Input id="cover" value={coverUrl} onChange={(event) => setCoverUrl(event.target.value)} />
+        <Label htmlFor="cover">URL de carátula (edición física)</Label>
+        <Input
+          id="cover"
+          value={coverUrl}
+          placeholder="Pega la URL de la carátula exacta de tu edición"
+          onChange={(event) => setCoverUrl(event.target.value)}
+        />
       </div>
+
 
       <div className="space-y-1.5">
         <Label htmlFor="synopsis">Sinopsis</Label>
@@ -391,7 +431,11 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label>Formato físico</Label>
+          <Label>
+            {mediaType === "game" ? "Plataforma física" : "Formato físico"}
+            {mediaType === "book" ? "" : " *"}
+          </Label>
+
           <Select value={format} onValueChange={setFormat}>
             <SelectTrigger>
               <SelectValue placeholder="Selecciona formato" />

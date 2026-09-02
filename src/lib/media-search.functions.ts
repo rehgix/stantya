@@ -11,12 +11,19 @@ export interface NormalizedResult {
   summary: string | null;
   media_type: SearchMediaType;
   platform: string | null;
+  /** Editorial (libros) o estudio/distribuidora */
+  publisher: string | null;
+  /** ISBN-13/10 de la edición física concreta */
+  isbn: string | null;
+  /** Etiqueta corta de la edición física ("Tapa dura", "PS5", …) */
+  edition: string | null;
 }
 
 interface Input {
   query: string;
   type: SearchMediaType;
 }
+
 
 const ISBN_RE = /^(97(8|9))?\d{9}(\d|X)$/i;
 
@@ -48,8 +55,12 @@ interface GoogleVolume {
     title?: string;
     subtitle?: string;
     authors?: string[];
+    publisher?: string;
     publishedDate?: string;
     description?: string;
+    printType?: string;
+    pageCount?: number;
+    industryIdentifiers?: { type?: string; identifier?: string }[];
     imageLinks?: Record<string, string>;
   };
 }
@@ -68,6 +79,15 @@ async function fetchGoogleBooks(q: string, key: string | undefined, lang?: strin
   return json.items ?? [];
 }
 
+/** Deduce el formato físico probable de la edición a partir de los datos de Google Books. */
+function bookEdition(info: NonNullable<GoogleVolume["volumeInfo"]>): string | null {
+  const pages = info.pageCount ?? 0;
+  if (info.printType && info.printType !== "BOOK") return "Ilustrado";
+  if (pages > 0 && pages < 200) return "Bolsillo";
+  if (pages >= 500) return "Tapa dura";
+  return "Tapa blanda";
+}
+
 async function searchBooks(query: string): Promise<NormalizedResult[]> {
   const key = process.env["GOOGLE_BOOKS_API_KEY"];
   const cleaned = query.replace(/[\s-]/g, "");
@@ -76,6 +96,16 @@ async function searchBooks(query: string): Promise<NormalizedResult[]> {
 
   let items = await fetchGoogleBooks(q, key, barcode ? undefined : "es");
   if (items.length === 0) items = await fetchGoogleBooks(q, key);
+  if (!barcode) {
+    // Segunda pasada por título exacto: trae otras ediciones físicas del mismo libro.
+    try {
+      const extra = await fetchGoogleBooks(`intitle:"${query}"`, key);
+      const seen = new Set(items.map((item) => item.id));
+      for (const volume of extra) if (!seen.has(volume.id)) items.push(volume);
+    } catch {
+      /* la primera pasada ya basta */
+    }
+  }
 
   return items.map((volume) => {
     const info = volume.volumeInfo ?? {};
@@ -85,6 +115,11 @@ async function searchBooks(query: string): Promise<NormalizedResult[]> {
       cleanBookCover(
         links["extraLarge"] ?? links["large"] ?? links["medium"] ?? links["thumbnail"] ?? links["smallThumbnail"],
       ) ?? coverFallback(title);
+    const identifiers = info.industryIdentifiers ?? [];
+    const isbn =
+      identifiers.find((entry) => entry.type === "ISBN_13")?.identifier ??
+      identifiers.find((entry) => entry.type === "ISBN_10")?.identifier ??
+      null;
     return {
       external_id: volume.id,
       title,
@@ -93,9 +128,13 @@ async function searchBooks(query: string): Promise<NormalizedResult[]> {
       cover_url: cover,
       summary: info.description ?? null,
       media_type: "book" as const,
-      platform: null,
+      platform: info.publisher ?? null,
+      publisher: info.publisher ?? null,
+      isbn,
+      edition: bookEdition(info),
     };
   });
+
 }
 
 
@@ -150,15 +189,59 @@ async function searchMovies(query: string): Promise<NormalizedResult[]> {
         title,
         creator: director,
         release_year: year(movie.release_date),
+        // Solo póster vertical: nunca backdrop_path.
         cover_url: movie.poster_path
           ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
           : coverFallback(title),
         summary: movie.overview || null,
         media_type: "movie" as const,
         platform: null,
+        publisher: null,
+        isbn: null,
+        edition: null,
       };
     }),
   );
+}
+
+/** Normaliza el nombre de plataforma de RAWG a las etiquetas físicas de la app. */
+const PLATFORM_ALIASES: [RegExp, string][] = [
+  [/playstation 5/i, "PS5"],
+  [/playstation 4/i, "PS4"],
+  [/playstation 3/i, "PS3"],
+  [/playstation 2/i, "PS2"],
+  [/playstation$|playstation 1|psx/i, "PS1"],
+  [/psp|playstation vita/i, "PS Vita"],
+  [/nintendo switch/i, "Nintendo Switch"],
+  [/wii u/i, "Wii U"],
+  [/^wii/i, "Wii"],
+  [/gamecube/i, "GameCube"],
+  [/nintendo 64/i, "Nintendo 64"],
+  [/nintendo 3ds/i, "Nintendo 3DS"],
+  [/nintendo ds/i, "Nintendo DS"],
+  [/snes|super nintendo/i, "SNES"],
+  [/game boy/i, "Game Boy"],
+  [/nes|nintendo entertainment/i, "NES"],
+  [/xbox series/i, "Xbox Series"],
+  [/xbox one/i, "Xbox One"],
+  [/xbox 360/i, "Xbox 360"],
+  [/^xbox$/i, "Xbox"],
+  [/genesis|mega drive/i, "Mega Drive"],
+  [/dreamcast/i, "Dreamcast"],
+  [/saturn/i, "Saturn"],
+  [/pc|windows|linux|macos/i, "PC"],
+];
+
+function canonicalPlatform(name: string): string | null {
+  for (const [pattern, label] of PLATFORM_ALIASES) if (pattern.test(name)) return label;
+  return null;
+}
+
+/** Recorta la imagen de RAWG a una proporción cercana a una carátula frontal. */
+function gameBoxArt(raw: string | null | undefined, title: string): string {
+  if (!raw) return coverFallback(title);
+  const url = raw.replace(/^http:\/\//, "https://");
+  return url.replace("/media/games/", "/media/crop/600/400/games/");
 }
 
 async function searchGames(query: string): Promise<NormalizedResult[]> {
@@ -186,19 +269,42 @@ async function searchGames(query: string): Promise<NormalizedResult[]> {
     }[];
   };
 
-  return (json.results ?? []).map((game) => {
+  const results: NormalizedResult[] = [];
+  for (const game of json.results ?? []) {
     const title = game.name || "Sin título";
-    return {
-      external_id: `rawg-${game.id}`,
+    const cover = gameBoxArt(game.background_image, title);
+    const base = {
       title,
       creator: game.developers?.[0]?.name ?? game.publishers?.[0]?.name ?? null,
       release_year: year(game.released),
-      cover_url: game.background_image ?? coverFallback(title),
+      cover_url: cover,
       summary: null,
       media_type: "game" as const,
-      platform: game.platforms?.[0]?.platform?.name ?? null,
+      publisher: game.publishers?.[0]?.name ?? null,
+      isbn: null,
     };
-  });
+
+    // Una entrada por edición física de consola, para elegir la versión concreta.
+    const platforms: string[] = [];
+    for (const entry of game.platforms ?? []) {
+      const label = canonicalPlatform(entry.platform?.name ?? "");
+      if (label && !platforms.includes(label)) platforms.push(label);
+    }
+
+    if (platforms.length === 0) {
+      results.push({ ...base, external_id: `rawg-${game.id}`, platform: null, edition: null });
+      continue;
+    }
+    for (const platform of platforms.slice(0, 6)) {
+      results.push({
+        ...base,
+        external_id: `rawg-${game.id}-${platform.toLowerCase().replace(/\s+/g, "-")}`,
+        platform,
+        edition: platform,
+      });
+    }
+  }
+  return results.slice(0, 60);
 }
 
 
@@ -222,3 +328,4 @@ export const searchMediaRemote = createServerFn({ method: "POST" })
       };
     }
   });
+
