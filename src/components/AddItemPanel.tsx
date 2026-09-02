@@ -394,13 +394,30 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
               />
             </div>
           </div>
+          {mediaType === "book" ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="publisher">Editorial</Label>
+              <Input
+                id="publisher"
+                value={publisher}
+                placeholder="Ej. Minotauro"
+                onChange={(event) => setPublisher(event.target.value)}
+              />
+            </div>
+          ) : null}
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="cover">URL de portada</Label>
-        <Input id="cover" value={coverUrl} onChange={(event) => setCoverUrl(event.target.value)} />
+        <Label htmlFor="cover">URL de carátula (edición física)</Label>
+        <Input
+          id="cover"
+          value={coverUrl}
+          placeholder="Pega la URL de la carátula exacta de tu edición"
+          onChange={(event) => setCoverUrl(event.target.value)}
+        />
       </div>
+
 
       <div className="space-y-1.5">
         <Label htmlFor="synopsis">Sinopsis</Label>
