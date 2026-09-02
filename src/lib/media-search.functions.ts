@@ -31,43 +31,63 @@ function year(value?: string | null): number | null {
   return Number.isFinite(parsed) && parsed > 1200 ? parsed : null;
 }
 
-async function searchBooks(query: string): Promise<NormalizedResult[]> {
-  const key = process.env["GOOGLE_BOOKS_API_KEY"];
-  const cleaned = query.replace(/[\s-]/g, "");
-  const q = isBarcode(query) ? `isbn:${cleaned}` : query;
+function cleanBookCover(raw?: string): string | null {
+  if (!raw) return null;
+  let url = raw.replace(/^http:\/\//, "https://").replace(/&edge=curl/g, "");
+  if (/zoom=\d/.test(url)) url = url.replace(/zoom=\d/, "zoom=2");
+  return url;
+}
+
+function coverFallback(title: string): string {
+  return `https://placehold.co/400x600/1A1D26/6366F1/png?text=${encodeURIComponent(title.slice(0, 40))}`;
+}
+
+interface GoogleVolume {
+  id: string;
+  volumeInfo?: {
+    title?: string;
+    subtitle?: string;
+    authors?: string[];
+    publishedDate?: string;
+    description?: string;
+    imageLinks?: Record<string, string>;
+  };
+}
+
+async function fetchGoogleBooks(q: string, key: string | undefined, lang?: string): Promise<GoogleVolume[]> {
   const url = new URL("https://www.googleapis.com/books/v1/volumes");
   url.searchParams.set("q", q);
   url.searchParams.set("maxResults", "20");
   url.searchParams.set("printType", "books");
+  if (lang) url.searchParams.set("langRestrict", lang);
   if (key) url.searchParams.set("key", key);
 
   const res = await fetch(url);
   if (!res.ok) throw new Error("Google Books no respondió correctamente");
-  const json = (await res.json()) as {
-    items?: {
-      id: string;
-      volumeInfo?: {
-        title?: string;
-        subtitle?: string;
-        authors?: string[];
-        publishedDate?: string;
-        description?: string;
-        imageLinks?: Record<string, string>;
-      };
-    }[];
-  };
+  const json = (await res.json()) as { items?: GoogleVolume[] };
+  return json.items ?? [];
+}
 
-  return (json.items ?? []).map((volume) => {
+async function searchBooks(query: string): Promise<NormalizedResult[]> {
+  const key = process.env["GOOGLE_BOOKS_API_KEY"];
+  const cleaned = query.replace(/[\s-]/g, "");
+  const barcode = isBarcode(query);
+  const q = barcode ? `isbn:${cleaned}` : query;
+
+  let items = await fetchGoogleBooks(q, key, barcode ? undefined : "es");
+  if (items.length === 0) items = await fetchGoogleBooks(q, key);
+
+  return items.map((volume) => {
     const info = volume.volumeInfo ?? {};
     const links = info.imageLinks ?? {};
-    const raw =
-      links["extraLarge"] ?? links["large"] ?? links["medium"] ?? links["thumbnail"] ?? links["smallThumbnail"];
-    const cover = raw
-      ? raw.replace("http://", "https://").replace("&edge=curl", "").replace(/zoom=\d/, "zoom=3")
-      : null;
+    const title = [info.title, info.subtitle].filter(Boolean).join(": ") || "Sin título";
+    const cover =
+      cleanBookCover(
+        links["extraLarge"] ?? links["large"] ?? links["medium"] ?? links["thumbnail"] ?? links["smallThumbnail"],
+      ) ?? coverFallback(title);
     return {
       external_id: volume.id,
-      title: [info.title, info.subtitle].filter(Boolean).join(": ") || "Sin título",
+      title,
       creator: info.authors?.join(", ") ?? null,
       release_year: year(info.publishedDate),
       cover_url: cover,
@@ -77,6 +97,7 @@ async function searchBooks(query: string): Promise<NormalizedResult[]> {
     };
   });
 }
+
 
 async function searchMovies(query: string): Promise<NormalizedResult[]> {
   const key = process.env["TMDB_API_KEY"];
