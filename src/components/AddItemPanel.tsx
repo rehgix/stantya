@@ -12,6 +12,7 @@ import {
 import { looksLikeBarcode, searchBooks, searchMedia, type SearchResult } from "@/lib/media-search";
 import { coverAspect, platformBanner, platformStyle } from "@/lib/physical";
 import { identifyCover } from "@/lib/vision.functions";
+import { CoverScanner } from "@/components/CoverScanner";
 
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { StarRating } from "@/components/StarRating";
