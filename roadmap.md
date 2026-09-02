@@ -8,3 +8,9 @@
 - [x] Juegos: selector de plataforma según el título y banner tipo caja física por consola
 - [x] Carátula alternativa: pegar URL o subir foto propia
 - [x] Landing page premium para visitantes no autenticados
+
+## Escaneo / digitalización de portadas (en curso)
+- [ ] Bucket público `custom_covers` + políticas de subida para usuarios autenticados
+- [ ] Componente CoverScanner: cámara/galería, recorte con ratio 2:3 (libros/cine) y 3:4 (juegos), rotar 90°, brillo/contraste
+- [ ] Procesado canvas ≥1000px alto, JPEG/WebP calidad 0.85, subida y guardado en cover_url
+- [ ] Integrado en el modal de añadir obra y en la ficha de edición
