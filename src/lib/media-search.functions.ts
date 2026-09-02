@@ -31,43 +31,63 @@ function year(value?: string | null): number | null {
   return Number.isFinite(parsed) && parsed > 1200 ? parsed : null;
 }
 
-async function searchBooks(query: string): Promise<NormalizedResult[]> {
-  const key = process.env["GOOGLE_BOOKS_API_KEY"];
-  const cleaned = query.replace(/[\s-]/g, "");
-  const q = isBarcode(query) ? `isbn:${cleaned}` : query;
+function cleanBookCover(raw?: string): string | null {
+  if (!raw) return null;
+  let url = raw.replace(/^http:\/\//, "https://").replace(/&edge=curl/g, "");
+  if (/zoom=\d/.test(url)) url = url.replace(/zoom=\d/, "zoom=2");
+  return url;
+}
+
+function coverFallback(title: string): string {
+  return `https://placehold.co/400x600/1A1D26/6366F1/png?text=${encodeURIComponent(title.slice(0, 40))}`;
+}
+
+interface GoogleVolume {
+  id: string;
+  volumeInfo?: {
+    title?: string;
+    subtitle?: string;
+    authors?: string[];
+    publishedDate?: string;
+    description?: string;
+    imageLinks?: Record<string, string>;
+  };
+}
+
+async function fetchGoogleBooks(q: string, key: string | undefined, lang?: string): Promise<GoogleVolume[]> {
   const url = new URL("https://www.googleapis.com/books/v1/volumes");
   url.searchParams.set("q", q);
   url.searchParams.set("maxResults", "20");
   url.searchParams.set("printType", "books");
+  if (lang) url.searchParams.set("langRestrict", lang);
   if (key) url.searchParams.set("key", key);
 
   const res = await fetch(url);
   if (!res.ok) throw new Error("Google Books no respondió correctamente");
-  const json = (await res.json()) as {
-    items?: {
-      id: string;
-      volumeInfo?: {
-        title?: string;
-        subtitle?: string;
-        authors?: string[];
-        publishedDate?: string;
-        description?: string;
-        imageLinks?: Record<string, string>;
-      };
-    }[];
-  };
+  const json = (await res.json()) as { items?: GoogleVolume[] };
+  return json.items ?? [];
+}
 
-  return (json.items ?? []).map((volume) => {
+async function searchBooks(query: string): Promise<NormalizedResult[]> {
+  const key = process.env["GOOGLE_BOOKS_API_KEY"];
+  const cleaned = query.replace(/[\s-]/g, "");
+  const barcode = isBarcode(query);
+  const q = barcode ? `isbn:${cleaned}` : query;
+
+  let items = await fetchGoogleBooks(q, key, barcode ? undefined : "es");
+  if (items.length === 0) items = await fetchGoogleBooks(q, key);
+
+  return items.map((volume) => {
     const info = volume.volumeInfo ?? {};
     const links = info.imageLinks ?? {};
-    const raw =
-      links["extraLarge"] ?? links["large"] ?? links["medium"] ?? links["thumbnail"] ?? links["smallThumbnail"];
-    const cover = raw
-      ? raw.replace("http://", "https://").replace("&edge=curl", "").replace(/zoom=\d/, "zoom=3")
-      : null;
+    const title = [info.title, info.subtitle].filter(Boolean).join(": ") || "Sin título";
+    const cover =
+      cleanBookCover(
+        links["extraLarge"] ?? links["large"] ?? links["medium"] ?? links["thumbnail"] ?? links["smallThumbnail"],
+      ) ?? coverFallback(title);
     return {
       external_id: volume.id,
-      title: [info.title, info.subtitle].filter(Boolean).join(": ") || "Sin título",
+      title,
       creator: info.authors?.join(", ") ?? null,
       release_year: year(info.publishedDate),
       cover_url: cover,
@@ -78,43 +98,45 @@ async function searchBooks(query: string): Promise<NormalizedResult[]> {
   });
 }
 
+
+interface TmdbMovie {
+  id: number;
+  title?: string;
+  original_title?: string;
+  release_date?: string;
+  overview?: string;
+  poster_path?: string | null;
+}
+
 async function searchMovies(query: string): Promise<NormalizedResult[]> {
   const key = process.env["TMDB_API_KEY"];
   if (!key) throw new Error("Falta la clave TMDB_API_KEY en el backend");
-
-  const url = new URL("https://api.themoviedb.org/3/search/movie");
-  url.searchParams.set("query", query);
-  url.searchParams.set("language", "es-ES");
-  url.searchParams.set("include_adult", "false");
-
   const isV4Token = key.split(".").length === 3;
-  if (!isV4Token) url.searchParams.set("api_key", key);
+  const headers = isV4Token ? { Authorization: `Bearer ${key}` } : {};
 
-  const res = await fetch(url, {
-    headers: isV4Token ? { Authorization: `Bearer ${key}` } : {},
-  });
-  if (!res.ok) throw new Error("TMDB no respondió correctamente");
-  const json = (await res.json()) as {
-    results?: {
-      id: number;
-      title?: string;
-      original_title?: string;
-      release_date?: string;
-      overview?: string;
-      poster_path?: string | null;
-    }[];
+  const fetchPage = async (language: string): Promise<TmdbMovie[]> => {
+    const url = new URL("https://api.themoviedb.org/3/search/movie");
+    url.searchParams.set("query", query);
+    url.searchParams.set("language", language);
+    url.searchParams.set("include_adult", "false");
+    url.searchParams.set("page", "1");
+    if (!isV4Token) url.searchParams.set("api_key", key);
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error("TMDB no respondió correctamente");
+    const json = (await res.json()) as { results?: TmdbMovie[] };
+    return json.results ?? [];
   };
 
-  const movies = json.results ?? [];
-  const detailed = await Promise.all(
-    movies.slice(0, 12).map(async (movie) => {
+  let movies = await fetchPage("es-ES");
+  if (movies.length === 0) movies = await fetchPage("en-US");
+
+  return Promise.all(
+    movies.slice(0, 20).map(async (movie) => {
       let director: string | null = null;
       try {
         const creditsUrl = new URL(`https://api.themoviedb.org/3/movie/${movie.id}/credits`);
         if (!isV4Token) creditsUrl.searchParams.set("api_key", key);
-        const creditsRes = await fetch(creditsUrl, {
-          headers: isV4Token ? { Authorization: `Bearer ${key}` } : {},
-        });
+        const creditsRes = await fetch(creditsUrl, { headers });
         if (creditsRes.ok) {
           const credits = (await creditsRes.json()) as { crew?: { job?: string; name?: string }[] };
           director = credits.crew?.find((member) => member.job === "Director")?.name ?? null;
@@ -122,19 +144,21 @@ async function searchMovies(query: string): Promise<NormalizedResult[]> {
       } catch {
         director = null;
       }
+      const title = movie.title || movie.original_title || "Sin título";
       return {
         external_id: `tmdb-${movie.id}`,
-        title: movie.title || movie.original_title || "Sin título",
+        title,
         creator: director,
         release_year: year(movie.release_date),
-        cover_url: movie.poster_path ? `https://image.tmdb.org/t/p/w780${movie.poster_path}` : null,
+        cover_url: movie.poster_path
+          ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+          : coverFallback(title),
         summary: movie.overview || null,
         media_type: "movie" as const,
         platform: null,
       };
     }),
   );
-  return detailed;
 }
 
 async function searchGames(query: string): Promise<NormalizedResult[]> {
@@ -144,7 +168,9 @@ async function searchGames(query: string): Promise<NormalizedResult[]> {
   const url = new URL("https://api.rawg.io/api/games");
   url.searchParams.set("key", key);
   url.searchParams.set("search", query);
-  url.searchParams.set("page_size", "12");
+  url.searchParams.set("search_precise", "false");
+  url.searchParams.set("page_size", "25");
+  url.searchParams.set("ordering", "-added");
 
   const res = await fetch(url);
   if (!res.ok) throw new Error("RAWG no respondió correctamente");
@@ -160,17 +186,21 @@ async function searchGames(query: string): Promise<NormalizedResult[]> {
     }[];
   };
 
-  return (json.results ?? []).map((game) => ({
-    external_id: `rawg-${game.id}`,
-    title: game.name || "Sin título",
-    creator: game.developers?.[0]?.name ?? game.publishers?.[0]?.name ?? null,
-    release_year: year(game.released),
-    cover_url: game.background_image ?? null,
-    summary: null,
-    media_type: "game" as const,
-    platform: game.platforms?.[0]?.platform?.name ?? null,
-  }));
+  return (json.results ?? []).map((game) => {
+    const title = game.name || "Sin título";
+    return {
+      external_id: `rawg-${game.id}`,
+      title,
+      creator: game.developers?.[0]?.name ?? game.publishers?.[0]?.name ?? null,
+      release_year: year(game.released),
+      cover_url: game.background_image ?? coverFallback(title),
+      summary: null,
+      media_type: "game" as const,
+      platform: game.platforms?.[0]?.platform?.name ?? null,
+    };
+  });
 }
+
 
 export const searchMediaRemote = createServerFn({ method: "POST" })
   .inputValidator((input: Input) => {
