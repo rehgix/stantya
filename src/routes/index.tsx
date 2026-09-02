@@ -5,6 +5,8 @@ import { LayoutGrid, List, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/use-session";
 import { AuthPanel } from "@/components/AuthPanel";
+import { BrandMark } from "@/components/BrandMark";
+
 import { AddItemPanel } from "@/components/AddItemPanel";
 import { ItemCard } from "@/components/ItemCard";
 import { ItemDetail } from "@/components/ItemDetail";
