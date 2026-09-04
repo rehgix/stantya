@@ -321,7 +321,7 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
                         ? [result.publisher, result.releaseYear, result.edition].filter(Boolean).join(", ")
                         : [result.creator, result.releaseYear].filter(Boolean).join(" · ")}
                     </p>
-                    {result.sources.length > 0 ? (
+                    {result.sources.length > 0 || result.international ? (
                       <div className="mt-1 flex flex-wrap gap-1">
                         {result.sources.map((source) => (
                           <span
@@ -331,8 +331,14 @@ export function AddItemPanel({ userId, onSaved, onClose }: Props) {
                             {source}
                           </span>
                         ))}
+                        {result.international ? (
+                          <span className="rounded border border-amber-500/50 bg-amber-500/10 px-1 py-px text-[9px] uppercase tracking-wide text-amber-500">
+                            Edición internacional
+                          </span>
+                        ) : null}
                       </div>
                     ) : null}
+
 
                   </button>
                 );

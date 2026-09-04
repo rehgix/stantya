@@ -21,7 +21,14 @@ export interface NormalizedResult {
   sources: string[];
   /** Carátulas alternativas encontradas en otras fuentes */
   alt_covers: string[];
+  /** Idioma detectado de la edición ("es", "en", …) */
+  language?: string | null;
+  /** La carátula no supera los filtros de calidad/idioma y conviene revisarla */
+  needs_fallback?: boolean;
+  /** La carátula disponible es la edición internacional (normalmente en inglés) */
+  international?: boolean;
 }
+
 
 interface Input {
   query: string;
@@ -64,6 +71,18 @@ async function fetchSafe(input: string | URL, init?: RequestInit & { timeoutMs?:
 function isFallbackCover(url: string | null): boolean {
   return !url || url.includes("placehold.co");
 }
+
+/**
+ * Filtro de ratio físico: solo carátulas verticales de estuche
+ * (alto/ancho entre 1.3 y 1.6). Sin medidas, se acepta por defecto.
+ */
+function isPhysicalRatio(width?: number | null, height?: number | null): boolean {
+  if (!width || !height) return true;
+  if (width >= height) return false;
+  const ratio = height / width;
+  return ratio >= 1.25 && ratio <= 1.65;
+}
+
 
 function coverFallback(title: string): string {
   return `https://placehold.co/400x600/1A1D26/6366F1/png?text=${encodeURIComponent(title.slice(0, 40))}`;
@@ -117,40 +136,66 @@ interface OpenLibraryDoc {
   first_publish_year?: number;
   cover_i?: number;
   isbn?: string[];
+  language?: string[];
   number_of_pages_median?: number;
 }
 
-/** Open Library: catálogo abierto de ediciones físicas, sin API key. */
-async function searchOpenLibrary(query: string): Promise<NormalizedResult[]> {
-  const cleaned = query.replace(/[\s-]/g, "");
-  const q = isBarcode(query) ? `isbn:${cleaned}` : query;
-  const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=25`;
-  const res = await fetchSafe(url);
+function mapOpenLibraryDoc(doc: OpenLibraryDoc, index: number): NormalizedResult {
+  const title = doc.title || "Sin título";
+  const pages = doc.number_of_pages_median ?? 0;
+  const languages = doc.language ?? [];
+  const spanish = languages.some((code) => code === "spa" || code === "es");
+  const cover = doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : null;
+  return {
+    external_id: doc.key ?? `ol-${index}-${title}`,
+    title,
+    creator: doc.author_name?.[0] ?? "Desconocido",
+    release_year: doc.first_publish_year ?? null,
+    cover_url: cover ?? coverFallback(title),
+    summary: null,
+    media_type: "book" as const,
+    platform: doc.publisher?.[0] ?? null,
+    publisher: doc.publisher?.[0] ?? null,
+    isbn: doc.isbn?.[0] ?? null,
+    edition: pages > 0 && pages < 200 ? "Bolsillo" : pages >= 500 ? "Tapa dura" : "Tapa blanda",
+    sources: ["OpenLib"],
+    alt_covers: [],
+    language: spanish ? "es" : (languages[0] ?? null),
+    international: languages.length > 0 && !spanish,
+    needs_fallback: !cover,
+  };
+}
+
+async function fetchOpenLibrary(params: string): Promise<OpenLibraryDoc[]> {
+  const res = await fetchSafe(`https://openlibrary.org/search.json?${params}`);
   if (!res.ok) throw new Error("Open Library no respondió correctamente");
   const json = (await res.json()) as { docs?: OpenLibraryDoc[] };
-
-  return (json.docs ?? []).map((doc, index) => {
-    const title = doc.title || "Sin título";
-    const pages = doc.number_of_pages_median ?? 0;
-    return {
-      external_id: doc.key ?? `ol-${index}-${title}`,
-      title,
-      creator: doc.author_name?.[0] ?? "Desconocido",
-      release_year: doc.first_publish_year ?? null,
-      cover_url: doc.cover_i
-        ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`
-        : coverFallback(title),
-      summary: null,
-      media_type: "book" as const,
-      platform: doc.publisher?.[0] ?? null,
-      publisher: doc.publisher?.[0] ?? null,
-      isbn: doc.isbn?.[0] ?? null,
-      edition: pages > 0 && pages < 200 ? "Bolsillo" : pages >= 500 ? "Tapa dura" : "Tapa blanda",
-      sources: ["OpenLib"],
-      alt_covers: [],
-    };
-  });
+  return json.docs ?? [];
 }
+
+/** Open Library: ediciones físicas, priorizando las publicadas en español. */
+async function searchOpenLibrary(query: string): Promise<NormalizedResult[]> {
+  const cleaned = query.replace(/[\s-]/g, "");
+  const barcode = isBarcode(query);
+  const fields = "fields=key,title,author_name,publisher,first_publish_year,cover_i,isbn,language,number_of_pages_median";
+
+  if (barcode) {
+    // Búsqueda por ISBN: edición física exacta con su editorial.
+    const docs = await fetchOpenLibrary(`q=${encodeURIComponent(`isbn:${cleaned}`)}&limit=25&${fields}`);
+    return docs.map(mapOpenLibraryDoc);
+  }
+
+  const [spanish, global] = await Promise.all([
+    fetchOpenLibrary(`q=${encodeURIComponent(query)}&language=spa&limit=25&${fields}`).catch(() => []),
+    fetchOpenLibrary(`q=${encodeURIComponent(query)}&limit=25&${fields}`).catch(() => []),
+  ]);
+
+  const seen = new Set(spanish.map((doc) => doc.key));
+  const docs = [...spanish, ...global.filter((doc) => !seen.has(doc.key))];
+  if (docs.length === 0) throw new Error("Open Library no devolvió resultados");
+  return docs.map(mapOpenLibraryDoc);
+}
+
 
 /** Resolución aproximada de una portada, para quedarnos con la mejor de cada fuente. */
 function coverScore(url: string | null): number {
@@ -185,7 +230,11 @@ function mergeResults(base: NormalizedResult, extra: NormalizedResult): Normaliz
     edition: base.edition ?? extra.edition,
     sources: [...new Set([...base.sources, ...extra.sources])],
     alt_covers: [...covers],
+    language: base.language ?? extra.language ?? null,
+    international: (base.international ?? false) && (extra.international ?? false),
+    needs_fallback: isFallbackCover(better.cover_url),
   };
+
 }
 
 /** Agrega varias fuentes desduplicando por huella y fusionando las coincidencias. */
@@ -262,6 +311,7 @@ async function searchGoogleBooksResults(query: string): Promise<NormalizedResult
       identifiers.find((entry) => entry.type === "ISBN_13")?.identifier ??
       identifiers.find((entry) => entry.type === "ISBN_10")?.identifier ??
       null;
+    const lang = (info as { language?: string }).language ?? null;
     return {
       external_id: volume.id,
       title,
@@ -276,7 +326,11 @@ async function searchGoogleBooksResults(query: string): Promise<NormalizedResult
       edition: bookEdition(info),
       sources: ["Google Books"],
       alt_covers: [],
+      language: lang,
+      international: lang !== null && lang !== "es",
+      needs_fallback: isFallbackCover(cover),
     };
+
   });
 
 }
@@ -313,6 +367,32 @@ async function searchMovies(query: string): Promise<NormalizedResult[]> {
   let movies = await fetchPage("es-ES");
   if (movies.length === 0) movies = await fetchPage("en-US");
 
+  /** Pósteres verticales del título, priorizando los españoles (include_image_language=es,null). */
+  const fetchPosters = async (id: number): Promise<{ es: string[]; other: string[] }> => {
+    const out = { es: [] as string[], other: [] as string[] };
+    try {
+      const url = new URL(`https://api.themoviedb.org/3/movie/${id}/images`);
+      url.searchParams.set("include_image_language", "es,null");
+      if (!isV4Token) url.searchParams.set("api_key", key);
+      const res = await fetchSafe(url, { headers });
+      if (!res.ok) return out;
+      const json = (await res.json()) as {
+        posters?: { file_path?: string; iso_639_1?: string | null; width?: number; height?: number }[];
+      };
+      for (const poster of json.posters ?? []) {
+        if (!poster.file_path) continue;
+        // Filtro de ratio físico: solo carátulas verticales de estuche.
+        if (!isPhysicalRatio(poster.width, poster.height)) continue;
+        const full = `https://image.tmdb.org/t/p/w500${poster.file_path}`;
+        if (poster.iso_639_1 === "es") out.es.push(full);
+        else out.other.push(full);
+      }
+    } catch {
+      /* sin imágenes extra: se usa poster_path */
+    }
+    return out;
+  };
+
   return Promise.all(
     movies.slice(0, 20).map(async (movie) => {
       let director: string | null = null;
@@ -328,15 +408,19 @@ async function searchMovies(query: string): Promise<NormalizedResult[]> {
         director = null;
       }
       const title = movie.title || movie.original_title || "Sin título";
+      const posters = await fetchPosters(movie.id);
+      const base = movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null;
+      // Solo póster vertical: nunca backdrop_path.
+      const cover = posters.es[0] ?? base ?? posters.other[0] ?? coverFallback(title);
+      const alternatives = [...posters.es, ...posters.other, ...(base ? [base] : [])]
+        .filter((url) => url !== cover)
+        .slice(0, 8);
       return {
         external_id: `tmdb-${movie.id}`,
         title,
         creator: director,
         release_year: year(movie.release_date),
-        // Solo póster vertical: nunca backdrop_path.
-        cover_url: movie.poster_path
-          ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-          : coverFallback(title),
+        cover_url: cover,
         summary: movie.overview || null,
         media_type: "movie" as const,
         platform: null,
@@ -344,11 +428,15 @@ async function searchMovies(query: string): Promise<NormalizedResult[]> {
         isbn: null,
         edition: null,
         sources: ["TMDB"],
-        alt_covers: [],
+        alt_covers: [...new Set(alternatives)],
+        language: posters.es.length > 0 ? "es" : "en",
+        international: posters.es.length === 0,
+        needs_fallback: isFallbackCover(cover),
       };
     }),
   );
 }
+
 
 /** IDs de plataforma de TheGamesDB → etiquetas físicas de la app. */
 const TGDB_PLATFORMS: Record<number, string> = {
@@ -393,6 +481,8 @@ interface TgdbBoxart {
   type?: string;
   side?: string;
   filename?: string;
+  resolution?: string;
+  region?: string;
 }
 
 interface TgdbGame {
@@ -401,8 +491,18 @@ interface TgdbGame {
   platform?: number;
   release_date?: string;
   overview?: string;
+  region_id?: number;
   developers?: number[];
   publishers?: number[];
+}
+
+/** Prioridad de la caja física: frontal y, a ser posible, edición europea/española. */
+function tgdbBoxartRank(image: TgdbBoxart): number {
+  if (image.side !== "front") return -1;
+  const region = (image.region ?? "").toLowerCase();
+  if (region.includes("spain") || region.includes("es")) return 3;
+  if (region.includes("europe") || region.includes("eu") || region.includes("pal")) return 2;
+  return 1;
 }
 
 /** TheGamesDB: carátula frontal oficial de la caja física por plataforma. */
@@ -436,8 +536,17 @@ async function searchTheGamesDb(query: string): Promise<NormalizedResult[]> {
   return games.slice(0, 40).map((game) => {
     const title = game.game_title || "Sin título";
     const images = boxartData[String(game.id)] ?? [];
-    const front = images.find((image) => image.side === "front") ?? images[0];
+    const fronts = images
+      .map((image) => ({ image, rank: tgdbBoxartRank(image) }))
+      .filter((entry) => entry.rank > 0)
+      .sort((a, b) => b.rank - a.rank)
+      .map((entry) => entry.image);
+    const front = fronts[0] ?? images[0];
     const cover = front?.filename && base ? `${base}${front.filename}` : coverFallback(title);
+    const alt = fronts
+      .slice(1)
+      .map((image) => `${base}${image.filename}`)
+      .filter((value) => value !== cover);
     const platform = tgdbPlatformLabel(
       game.platform,
       platformNames[String(game.platform)]?.name ?? null,
@@ -456,10 +565,15 @@ async function searchTheGamesDb(query: string): Promise<NormalizedResult[]> {
       isbn: null,
       edition: platform,
       sources: ["TheGamesDB"],
-      alt_covers: [],
+      alt_covers: [...new Set(alt)].slice(0, 6),
+      language: null,
+      // Sin caja frontal validada, la ficha necesita respaldo.
+      international: fronts.length > 0 ? tgdbBoxartRank(fronts[0]!) === 1 : true,
+      needs_fallback: isFallbackCover(cover) || fronts.length === 0,
     };
   });
 }
+
 
 
 interface RawgGame {
@@ -502,7 +616,12 @@ async function searchRawg(query: string): Promise<NormalizedResult[]> {
       edition: platform,
       sources: ["RAWG"],
       alt_covers: [],
+      language: null,
+      international: true,
+      // Arte promocional panorámico: nunca es una caja física válida.
+      needs_fallback: true,
     };
+
   });
 }
 
@@ -536,8 +655,10 @@ async function searchGames(query: string): Promise<NormalizedResult[]> {
       summary: game.summary ?? match.summary,
       release_year: game.release_year ?? match.release_year,
       sources: [...new Set([...game.sources, ...match.sources])],
+      needs_fallback: coverMissing ? true : (game.needs_fallback ?? false),
     };
   });
+
 
   const tgdbTitles = new Set(tgdb.map((game) => game.title.toLowerCase().trim()));
   const onlyRawg = rawg.filter((game) => !tgdbTitles.has(game.title.toLowerCase().trim()));
@@ -545,6 +666,96 @@ async function searchGames(query: string): Promise<NormalizedResult[]> {
   const merged = [...enriched, ...onlyRawg];
   if (merged.length === 0) throw new Error("No se encontraron videojuegos para esa búsqueda");
   return merged;
+}
+
+/** Guarda una carátula de terceros en el almacén propio para que el enlace no caduque. */
+async function persistCover(url: string): Promise<string | null> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const res = await fetchSafe(url, { timeoutMs: 10000 });
+    if (!res.ok) return null;
+    const type = res.headers.get("content-type") ?? "image/jpeg";
+    if (!type.startsWith("image/")) return null;
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const extension = type.includes("png") ? "png" : type.includes("webp") ? "webp" : "jpg";
+    const path = `web/${crypto.randomUUID()}.${extension}`;
+    const { error } = await supabaseAdmin.storage
+      .from("custom-covers")
+      .upload(path, bytes, { contentType: type, upsert: false });
+    if (error) return null;
+    const { data } = await supabaseAdmin.storage
+      .from("custom-covers")
+      .createSignedUrl(path, 60 * 60 * 24 * 3650);
+    return data?.signedUrl ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Respaldo: búsqueda de imágenes en Google Custom Search cuando ninguna fuente
+ * especializada aporta una carátula frontal válida. Requiere GOOGLE_CSE_API_KEY y GOOGLE_CSE_CX.
+ */
+async function webCoverCandidates(result: NormalizedResult): Promise<string[]> {
+  const key = process.env["GOOGLE_CSE_API_KEY"];
+  const cx = process.env["GOOGLE_CSE_CX"];
+  if (!key || !cx) return [];
+  const extra = result.platform ?? result.publisher ?? "";
+  const query = `${result.title} ${extra} caratula frontal espana box art`.trim();
+
+  const url = new URL("https://www.googleapis.com/customsearch/v1");
+  url.searchParams.set("key", key);
+  url.searchParams.set("cx", cx);
+  url.searchParams.set("q", query);
+  url.searchParams.set("searchType", "image");
+  url.searchParams.set("fileType", "jpg,png,webp");
+  url.searchParams.set("imgSize", "large");
+  url.searchParams.set("num", "5");
+
+  try {
+    const res = await fetchSafe(url);
+    if (!res.ok) return [];
+    const json = (await res.json()) as {
+      items?: { link?: string; image?: { width?: number; height?: number } }[];
+    };
+    return (json.items ?? [])
+      .filter((item) => {
+        const width = item.image?.width ?? 0;
+        const height = item.image?.height ?? 0;
+        return Boolean(item.link) && height > width;
+      })
+      .slice(0, 3)
+      .map((item) => item.link!);
+  } catch {
+    return [];
+  }
+}
+
+/** Aplica el respaldo web a los resultados que no superaron la validación estricta. */
+async function applyWebFallback(results: NormalizedResult[]): Promise<NormalizedResult[]> {
+  const targets = results
+    .map((result, index) => ({ result, index }))
+    .filter(({ result }) => result.needs_fallback && isFallbackCover(result.cover_url))
+    .slice(0, 4);
+  if (targets.length === 0) return results;
+
+  const patched = [...results];
+  await Promise.all(
+    targets.map(async ({ result, index }) => {
+      const candidates = await webCoverCandidates(result);
+      if (candidates.length === 0) return;
+      const stored = (await persistCover(candidates[0]!)) ?? candidates[0]!;
+      patched[index] = {
+        ...result,
+        cover_url: stored,
+        alt_covers: [...new Set([...result.alt_covers, ...candidates.slice(1)])],
+        sources: [...new Set([...result.sources, "Web"])],
+        needs_fallback: false,
+        international: true,
+      };
+    }),
+  );
+  return patched;
 }
 
 export const searchMediaRemote = createServerFn({ method: "POST" })
@@ -557,9 +768,13 @@ export const searchMediaRemote = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }): Promise<{ results: NormalizedResult[]; error: string | null }> => {
     try {
-      if (data.type === "book") return { results: await searchBooks(data.query), error: null };
-      if (data.type === "movie") return { results: await searchMovies(data.query), error: null };
-      return { results: await searchGames(data.query), error: null };
+      const results =
+        data.type === "book"
+          ? await searchBooks(data.query)
+          : data.type === "movie"
+            ? await searchMovies(data.query)
+            : await searchGames(data.query);
+      return { results: await applyWebFallback(results), error: null };
     } catch (error) {
       return {
         results: [],
@@ -567,4 +782,5 @@ export const searchMediaRemote = createServerFn({ method: "POST" })
       };
     }
   });
+
 
