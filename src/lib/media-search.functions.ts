@@ -655,8 +655,10 @@ async function searchGames(query: string): Promise<NormalizedResult[]> {
       summary: game.summary ?? match.summary,
       release_year: game.release_year ?? match.release_year,
       sources: [...new Set([...game.sources, ...match.sources])],
+      needs_fallback: coverMissing ? true : (game.needs_fallback ?? false),
     };
   });
+
 
   const tgdbTitles = new Set(tgdb.map((game) => game.title.toLowerCase().trim()));
   const onlyRawg = rawg.filter((game) => !tgdbTitles.has(game.title.toLowerCase().trim()));
