@@ -295,6 +295,7 @@ async function searchGoogleBooksResults(query: string): Promise<NormalizedResult
       identifiers.find((entry) => entry.type === "ISBN_13")?.identifier ??
       identifiers.find((entry) => entry.type === "ISBN_10")?.identifier ??
       null;
+    const lang = (info as { language?: string }).language ?? null;
     return {
       external_id: volume.id,
       title,
@@ -309,7 +310,11 @@ async function searchGoogleBooksResults(query: string): Promise<NormalizedResult
       edition: bookEdition(info),
       sources: ["Google Books"],
       alt_covers: [],
+      language: lang,
+      international: lang !== null && lang !== "es",
+      needs_fallback: isFallbackCover(cover),
     };
+
   });
 
 }
