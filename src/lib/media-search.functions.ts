@@ -616,7 +616,12 @@ async function searchRawg(query: string): Promise<NormalizedResult[]> {
       edition: platform,
       sources: ["RAWG"],
       alt_covers: [],
+      language: null,
+      international: true,
+      // Arte promocional panorámico: nunca es una caja física válida.
+      needs_fallback: true,
     };
+
   });
 }
 
