@@ -15,6 +15,9 @@ export interface SearchResult {
   edition: string | null;
   sources: string[];
   altCovers: string[];
+  language: string | null;
+  international: boolean;
+  needsFallback: boolean;
 }
 
 
@@ -40,6 +43,9 @@ function toSearchResult(row: NormalizedResult): SearchResult {
     edition: row.edition,
     sources: row.sources ?? [],
     altCovers: row.alt_covers ?? [],
+    language: row.language ?? null,
+    international: row.international ?? false,
+    needsFallback: row.needs_fallback ?? false,
   };
 }
 
