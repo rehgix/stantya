@@ -14,3 +14,9 @@
 - [x] Componente CoverScanner: cámara/galería, recorte con ratio 2:3 (libros/cine) y 3:4 (juegos), rotar 90°, brillo/contraste
 - [x] Procesado canvas ≥1000px alto, JPEG/WebP calidad 0.85, subida y guardado en cover_url
 - [x] Integrado en el modal de añadir obra y en la ficha de edición
+
+## Cascada multi-proveedor con validación estricta (hecho)
+- [x] Cine: pósteres TMDB en español (`include_image_language=es,null`) y solo verticales
+- [x] Juegos: caja frontal TheGamesDB priorizando Europa/España; RAWG marcado como respaldo
+- [x] Marcado `Edición internacional` y carátulas alternativas en el buscador
+- [x] Respaldo web (Google Custom Search) con guardado en el almacén propio; requiere GOOGLE_CSE_API_KEY y GOOGLE_CSE_CX
