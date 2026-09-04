@@ -668,6 +668,96 @@ async function searchGames(query: string): Promise<NormalizedResult[]> {
   return merged;
 }
 
+/** Guarda una carátula de terceros en el almacén propio para que el enlace no caduque. */
+async function persistCover(url: string): Promise<string | null> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const res = await fetchSafe(url, { timeoutMs: 10000 });
+    if (!res.ok) return null;
+    const type = res.headers.get("content-type") ?? "image/jpeg";
+    if (!type.startsWith("image/")) return null;
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const extension = type.includes("png") ? "png" : type.includes("webp") ? "webp" : "jpg";
+    const path = `web/${crypto.randomUUID()}.${extension}`;
+    const { error } = await supabaseAdmin.storage
+      .from("custom-covers")
+      .upload(path, bytes, { contentType: type, upsert: false });
+    if (error) return null;
+    const { data } = await supabaseAdmin.storage
+      .from("custom-covers")
+      .createSignedUrl(path, 60 * 60 * 24 * 3650);
+    return data?.signedUrl ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Respaldo: búsqueda de imágenes en Google Custom Search cuando ninguna fuente
+ * especializada aporta una carátula frontal válida. Requiere GOOGLE_CSE_API_KEY y GOOGLE_CSE_CX.
+ */
+async function webCoverCandidates(result: NormalizedResult): Promise<string[]> {
+  const key = process.env["GOOGLE_CSE_API_KEY"];
+  const cx = process.env["GOOGLE_CSE_CX"];
+  if (!key || !cx) return [];
+  const extra = result.platform ?? result.publisher ?? "";
+  const query = `${result.title} ${extra} caratula frontal espana box art`.trim();
+
+  const url = new URL("https://www.googleapis.com/customsearch/v1");
+  url.searchParams.set("key", key);
+  url.searchParams.set("cx", cx);
+  url.searchParams.set("q", query);
+  url.searchParams.set("searchType", "image");
+  url.searchParams.set("fileType", "jpg,png,webp");
+  url.searchParams.set("imgSize", "large");
+  url.searchParams.set("num", "5");
+
+  try {
+    const res = await fetchSafe(url);
+    if (!res.ok) return [];
+    const json = (await res.json()) as {
+      items?: { link?: string; image?: { width?: number; height?: number } }[];
+    };
+    return (json.items ?? [])
+      .filter((item) => {
+        const width = item.image?.width ?? 0;
+        const height = item.image?.height ?? 0;
+        return Boolean(item.link) && height > width;
+      })
+      .slice(0, 3)
+      .map((item) => item.link!);
+  } catch {
+    return [];
+  }
+}
+
+/** Aplica el respaldo web a los resultados que no superaron la validación estricta. */
+async function applyWebFallback(results: NormalizedResult[]): Promise<NormalizedResult[]> {
+  const targets = results
+    .map((result, index) => ({ result, index }))
+    .filter(({ result }) => result.needs_fallback && isFallbackCover(result.cover_url))
+    .slice(0, 4);
+  if (targets.length === 0) return results;
+
+  const patched = [...results];
+  await Promise.all(
+    targets.map(async ({ result, index }) => {
+      const candidates = await webCoverCandidates(result);
+      if (candidates.length === 0) return;
+      const stored = (await persistCover(candidates[0]!)) ?? candidates[0]!;
+      patched[index] = {
+        ...result,
+        cover_url: stored,
+        alt_covers: [...new Set([...result.alt_covers, ...candidates.slice(1)])],
+        sources: [...new Set([...result.sources, "Web"])],
+        needs_fallback: false,
+        international: true,
+      };
+    }),
+  );
+  return patched;
+}
+
 export const searchMediaRemote = createServerFn({ method: "POST" })
   .inputValidator((input: Input) => {
     const query = String(input?.query ?? "").trim();
@@ -678,9 +768,13 @@ export const searchMediaRemote = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }): Promise<{ results: NormalizedResult[]; error: string | null }> => {
     try {
-      if (data.type === "book") return { results: await searchBooks(data.query), error: null };
-      if (data.type === "movie") return { results: await searchMovies(data.query), error: null };
-      return { results: await searchGames(data.query), error: null };
+      const results =
+        data.type === "book"
+          ? await searchBooks(data.query)
+          : data.type === "movie"
+            ? await searchMovies(data.query)
+            : await searchGames(data.query);
+      return { results: await applyWebFallback(results), error: null };
     } catch (error) {
       return {
         results: [],
@@ -688,4 +782,5 @@ export const searchMediaRemote = createServerFn({ method: "POST" })
       };
     }
   });
+
 
