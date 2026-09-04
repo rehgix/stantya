@@ -230,7 +230,11 @@ function mergeResults(base: NormalizedResult, extra: NormalizedResult): Normaliz
     edition: base.edition ?? extra.edition,
     sources: [...new Set([...base.sources, ...extra.sources])],
     alt_covers: [...covers],
+    language: base.language ?? extra.language ?? null,
+    international: (base.international ?? false) && (extra.international ?? false),
+    needs_fallback: isFallbackCover(better.cover_url),
   };
+
 }
 
 /** Agrega varias fuentes desduplicando por huella y fusionando las coincidencias. */
