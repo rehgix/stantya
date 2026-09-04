@@ -21,7 +21,14 @@ export interface NormalizedResult {
   sources: string[];
   /** Carátulas alternativas encontradas en otras fuentes */
   alt_covers: string[];
+  /** Idioma detectado de la edición ("es", "en", …) */
+  language?: string | null;
+  /** La carátula no supera los filtros de calidad/idioma y conviene revisarla */
+  needs_fallback?: boolean;
+  /** La carátula disponible es la edición internacional (normalmente en inglés) */
+  international?: boolean;
 }
+
 
 interface Input {
   query: string;
