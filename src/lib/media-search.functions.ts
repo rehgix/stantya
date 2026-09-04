@@ -481,6 +481,8 @@ interface TgdbBoxart {
   type?: string;
   side?: string;
   filename?: string;
+  resolution?: string;
+  region?: string;
 }
 
 interface TgdbGame {
@@ -489,8 +491,18 @@ interface TgdbGame {
   platform?: number;
   release_date?: string;
   overview?: string;
+  region_id?: number;
   developers?: number[];
   publishers?: number[];
+}
+
+/** Prioridad de la caja física: frontal y, a ser posible, edición europea/española. */
+function tgdbBoxartRank(image: TgdbBoxart): number {
+  if (image.side !== "front") return -1;
+  const region = (image.region ?? "").toLowerCase();
+  if (region.includes("spain") || region.includes("es")) return 3;
+  if (region.includes("europe") || region.includes("eu") || region.includes("pal")) return 2;
+  return 1;
 }
 
 /** TheGamesDB: carátula frontal oficial de la caja física por plataforma. */
@@ -524,8 +536,17 @@ async function searchTheGamesDb(query: string): Promise<NormalizedResult[]> {
   return games.slice(0, 40).map((game) => {
     const title = game.game_title || "Sin título";
     const images = boxartData[String(game.id)] ?? [];
-    const front = images.find((image) => image.side === "front") ?? images[0];
+    const fronts = images
+      .map((image) => ({ image, rank: tgdbBoxartRank(image) }))
+      .filter((entry) => entry.rank > 0)
+      .sort((a, b) => b.rank - a.rank)
+      .map((entry) => entry.image);
+    const front = fronts[0] ?? images[0];
     const cover = front?.filename && base ? `${base}${front.filename}` : coverFallback(title);
+    const alt = fronts
+      .slice(1)
+      .map((image) => `${base}${image.filename}`)
+      .filter((value) => value !== cover);
     const platform = tgdbPlatformLabel(
       game.platform,
       platformNames[String(game.platform)]?.name ?? null,
@@ -544,10 +565,15 @@ async function searchTheGamesDb(query: string): Promise<NormalizedResult[]> {
       isbn: null,
       edition: platform,
       sources: ["TheGamesDB"],
-      alt_covers: [],
+      alt_covers: [...new Set(alt)].slice(0, 6),
+      language: null,
+      // Sin caja frontal validada, la ficha necesita respaldo.
+      international: fronts.length > 0 ? tgdbBoxartRank(fronts[0]!) === 1 : true,
+      needs_fallback: isFallbackCover(cover) || fronts.length === 0,
     };
   });
 }
+
 
 
 interface RawgGame {
