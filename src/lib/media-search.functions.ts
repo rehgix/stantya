@@ -72,6 +72,18 @@ function isFallbackCover(url: string | null): boolean {
   return !url || url.includes("placehold.co");
 }
 
+/**
+ * Filtro de ratio físico: solo carátulas verticales de estuche
+ * (alto/ancho entre 1.3 y 1.6). Sin medidas, se acepta por defecto.
+ */
+function isPhysicalRatio(width?: number | null, height?: number | null): boolean {
+  if (!width || !height) return true;
+  if (width >= height) return false;
+  const ratio = height / width;
+  return ratio >= 1.25 && ratio <= 1.65;
+}
+
+
 function coverFallback(title: string): string {
   return `https://placehold.co/400x600/1A1D26/6366F1/png?text=${encodeURIComponent(title.slice(0, 40))}`;
 }
