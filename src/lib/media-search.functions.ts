@@ -351,6 +351,32 @@ async function searchMovies(query: string): Promise<NormalizedResult[]> {
   let movies = await fetchPage("es-ES");
   if (movies.length === 0) movies = await fetchPage("en-US");
 
+  /** Pósteres verticales del título, priorizando los españoles (include_image_language=es,null). */
+  const fetchPosters = async (id: number): Promise<{ es: string[]; other: string[] }> => {
+    const out = { es: [] as string[], other: [] as string[] };
+    try {
+      const url = new URL(`https://api.themoviedb.org/3/movie/${id}/images`);
+      url.searchParams.set("include_image_language", "es,null");
+      if (!isV4Token) url.searchParams.set("api_key", key);
+      const res = await fetchSafe(url, { headers });
+      if (!res.ok) return out;
+      const json = (await res.json()) as {
+        posters?: { file_path?: string; iso_639_1?: string | null; width?: number; height?: number }[];
+      };
+      for (const poster of json.posters ?? []) {
+        if (!poster.file_path) continue;
+        // Filtro de ratio físico: solo carátulas verticales de estuche.
+        if (!isPhysicalRatio(poster.width, poster.height)) continue;
+        const full = `https://image.tmdb.org/t/p/w500${poster.file_path}`;
+        if (poster.iso_639_1 === "es") out.es.push(full);
+        else out.other.push(full);
+      }
+    } catch {
+      /* sin imágenes extra: se usa poster_path */
+    }
+    return out;
+  };
+
   return Promise.all(
     movies.slice(0, 20).map(async (movie) => {
       let director: string | null = null;
@@ -366,15 +392,19 @@ async function searchMovies(query: string): Promise<NormalizedResult[]> {
         director = null;
       }
       const title = movie.title || movie.original_title || "Sin título";
+      const posters = await fetchPosters(movie.id);
+      const base = movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null;
+      // Solo póster vertical: nunca backdrop_path.
+      const cover = posters.es[0] ?? base ?? posters.other[0] ?? coverFallback(title);
+      const alternatives = [...posters.es, ...posters.other, ...(base ? [base] : [])]
+        .filter((url) => url !== cover)
+        .slice(0, 8);
       return {
         external_id: `tmdb-${movie.id}`,
         title,
         creator: director,
         release_year: year(movie.release_date),
-        // Solo póster vertical: nunca backdrop_path.
-        cover_url: movie.poster_path
-          ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-          : coverFallback(title),
+        cover_url: cover,
         summary: movie.overview || null,
         media_type: "movie" as const,
         platform: null,
@@ -382,11 +412,15 @@ async function searchMovies(query: string): Promise<NormalizedResult[]> {
         isbn: null,
         edition: null,
         sources: ["TMDB"],
-        alt_covers: [],
+        alt_covers: [...new Set(alternatives)],
+        language: posters.es.length > 0 ? "es" : "en",
+        international: posters.es.length === 0,
+        needs_fallback: isFallbackCover(cover),
       };
     }),
   );
 }
+
 
 /** IDs de plataforma de TheGamesDB → etiquetas físicas de la app. */
 const TGDB_PLATFORMS: Record<number, string> = {
