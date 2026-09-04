@@ -124,40 +124,66 @@ interface OpenLibraryDoc {
   first_publish_year?: number;
   cover_i?: number;
   isbn?: string[];
+  language?: string[];
   number_of_pages_median?: number;
 }
 
-/** Open Library: catálogo abierto de ediciones físicas, sin API key. */
-async function searchOpenLibrary(query: string): Promise<NormalizedResult[]> {
-  const cleaned = query.replace(/[\s-]/g, "");
-  const q = isBarcode(query) ? `isbn:${cleaned}` : query;
-  const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=25`;
-  const res = await fetchSafe(url);
+function mapOpenLibraryDoc(doc: OpenLibraryDoc, index: number): NormalizedResult {
+  const title = doc.title || "Sin título";
+  const pages = doc.number_of_pages_median ?? 0;
+  const languages = doc.language ?? [];
+  const spanish = languages.some((code) => code === "spa" || code === "es");
+  const cover = doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : null;
+  return {
+    external_id: doc.key ?? `ol-${index}-${title}`,
+    title,
+    creator: doc.author_name?.[0] ?? "Desconocido",
+    release_year: doc.first_publish_year ?? null,
+    cover_url: cover ?? coverFallback(title),
+    summary: null,
+    media_type: "book" as const,
+    platform: doc.publisher?.[0] ?? null,
+    publisher: doc.publisher?.[0] ?? null,
+    isbn: doc.isbn?.[0] ?? null,
+    edition: pages > 0 && pages < 200 ? "Bolsillo" : pages >= 500 ? "Tapa dura" : "Tapa blanda",
+    sources: ["OpenLib"],
+    alt_covers: [],
+    language: spanish ? "es" : (languages[0] ?? null),
+    international: languages.length > 0 && !spanish,
+    needs_fallback: !cover,
+  };
+}
+
+async function fetchOpenLibrary(params: string): Promise<OpenLibraryDoc[]> {
+  const res = await fetchSafe(`https://openlibrary.org/search.json?${params}`);
   if (!res.ok) throw new Error("Open Library no respondió correctamente");
   const json = (await res.json()) as { docs?: OpenLibraryDoc[] };
-
-  return (json.docs ?? []).map((doc, index) => {
-    const title = doc.title || "Sin título";
-    const pages = doc.number_of_pages_median ?? 0;
-    return {
-      external_id: doc.key ?? `ol-${index}-${title}`,
-      title,
-      creator: doc.author_name?.[0] ?? "Desconocido",
-      release_year: doc.first_publish_year ?? null,
-      cover_url: doc.cover_i
-        ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`
-        : coverFallback(title),
-      summary: null,
-      media_type: "book" as const,
-      platform: doc.publisher?.[0] ?? null,
-      publisher: doc.publisher?.[0] ?? null,
-      isbn: doc.isbn?.[0] ?? null,
-      edition: pages > 0 && pages < 200 ? "Bolsillo" : pages >= 500 ? "Tapa dura" : "Tapa blanda",
-      sources: ["OpenLib"],
-      alt_covers: [],
-    };
-  });
+  return json.docs ?? [];
 }
+
+/** Open Library: ediciones físicas, priorizando las publicadas en español. */
+async function searchOpenLibrary(query: string): Promise<NormalizedResult[]> {
+  const cleaned = query.replace(/[\s-]/g, "");
+  const barcode = isBarcode(query);
+  const fields = "fields=key,title,author_name,publisher,first_publish_year,cover_i,isbn,language,number_of_pages_median";
+
+  if (barcode) {
+    // Búsqueda por ISBN: edición física exacta con su editorial.
+    const docs = await fetchOpenLibrary(`q=${encodeURIComponent(`isbn:${cleaned}`)}&limit=25&${fields}`);
+    return docs.map(mapOpenLibraryDoc);
+  }
+
+  const [spanish, global] = await Promise.all([
+    fetchOpenLibrary(`q=${encodeURIComponent(query)}&language=spa&limit=25&${fields}`).catch(() => []),
+    fetchOpenLibrary(`q=${encodeURIComponent(query)}&limit=25&${fields}`).catch(() => []),
+  ]);
+
+  const seen = new Set(spanish.map((doc) => doc.key));
+  const docs = [...spanish, ...global.filter((doc) => !seen.has(doc.key))];
+  if (docs.length === 0) throw new Error("Open Library no devolvió resultados");
+  return docs.map(mapOpenLibraryDoc);
+}
+
 
 /** Resolución aproximada de una portada, para quedarnos con la mejor de cada fuente. */
 function coverScore(url: string | null): number {
