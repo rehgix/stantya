@@ -694,11 +694,11 @@ async function persistCover(url: string): Promise<string | null> {
 
 /**
  * Respaldo: búsqueda de imágenes en Google Custom Search cuando ninguna fuente
- * especializada aporta una carátula frontal válida. Requiere GOOGLE_CSE_API_KEY y GOOGLE_CSE_CX.
+ * especializada aporta una carátula frontal válida. Requiere GOOGLE_CSE_API_KEY y GOOGLE_CSE_ENGINE_ID.
  */
 async function webCoverCandidates(result: NormalizedResult): Promise<string[]> {
   const key = process.env["GOOGLE_CSE_API_KEY"];
-  const cx = process.env["GOOGLE_CSE_CX"];
+  const cx = process.env["GOOGLE_CSE_ENGINE_ID"] ?? process.env["GOOGLE_CSE_CX"];
   if (!key || !cx) return [];
   const extra = result.platform ?? result.publisher ?? "";
   const query = `${result.title} ${extra} caratula frontal espana box art`.trim();
