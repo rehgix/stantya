@@ -1,97 +1,63 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { LayoutGrid, List, Plus, Shield } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/use-session";
 import { Landing } from "@/components/Landing";
-import { BrandMark } from "@/components/BrandMark";
-
-import { AddItemPanel } from "@/components/AddItemPanel";
-import { ItemCard } from "@/components/ItemCard";
-import { ItemDetail } from "@/components/ItemDetail";
+import { AppNav } from "@/components/AppNav";
+import { GameCard } from "@/components/GameCard";
+import { AddGameDialog } from "@/components/AddGameDialog";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import type { InventoryRow, MediaType } from "@/lib/collection";
+import { ESTADOS, type EstadoJuego, type Juego } from "@/lib/games";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Stantya — Tu archivo personal de coleccionismo" },
+      { title: "Stantya — El diario personal de tu vida gamer" },
       {
         name: "description",
         content:
-          "Cataloga tu colección física en una galería elegante: portadas, sinopsis, formato, estado de lectura o juego, puntuación y notas privadas.",
+          "Rastrea tu colección de videojuegos, escribe notas y recuerdos sobre cada juego que juegas y sigue la actividad de otros jugadores.",
       },
-      { property: "og:title", content: "Stantya — Archivo personal de coleccionismo" },
+      { property: "og:title", content: "Stantya — El diario personal de tu vida gamer" },
       {
         property: "og:description",
-        content:
-          "Organiza libros, videojuegos y películas por portada, formato físico, estado personal y puntuación.",
+        content: "Tu colección de videojuegos, tus recuerdos y la actividad de la comunidad, en un solo sitio.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-
-  component: Library,
+  component: Biblioteca,
 });
 
-type Filter = "all" | MediaType | "pending";
+type Filtro = "todos" | EstadoJuego;
 
-const FILTERS: { value: Filter; label: string }[] = [
-  { value: "all", label: "Todo" },
-  { value: "book", label: "Libros" },
-  { value: "game", label: "Videojuegos" },
-  { value: "movie", label: "Películas" },
-  { value: "pending", label: "Pendientes" },
-];
-
-function Library() {
+function Biblioteca() {
   const { user, loading } = useSession();
-  const [filter, setFilter] = useState<Filter>("all");
-  const [view, setView] = useState<"grid" | "list">("grid");
+  const [filtro, setFiltro] = useState<Filtro>("todos");
   const [adding, setAdding] = useState(false);
-  const [selected, setSelected] = useState<InventoryRow | null>(null);
 
-  const { data: isAdmin = false } = useQuery({
-    queryKey: ["my-admin-role", user?.id],
+  const { data: juegos = [], refetch } = useQuery({
+    queryKey: ["mis-juegos", user?.id],
     enabled: Boolean(user),
-    queryFn: async (): Promise<boolean> => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user!.id)
-        .eq("role", "admin")
-        .maybeSingle();
-      return Boolean(data);
-    },
-  });
-
-
-
-  const { data: rows = [], refetch } = useQuery({
-    queryKey: ["inventory", user?.id],
-    enabled: Boolean(user),
-    queryFn: async (): Promise<InventoryRow[]> => {
+    queryFn: async (): Promise<Juego[]> => {
       const { data, error } = await supabase
-        .from("user_inventory")
-        .select(
-          "id, item_id, format, status, rating, notes, items(id, media_type, title, creator, release_year, cover_url, platform, external_id, synopsis)",
-        )
+        .from("juegos")
+        .select("*")
+        .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as unknown as InventoryRow[];
+      return (data ?? []) as Juego[];
     },
   });
 
-  const visible = useMemo(() => {
-    if (filter === "all") return rows;
-    if (filter === "pending")
-      return rows.filter((row) => row.status === "pendiente" || row.status === "deseo");
-    return rows.filter((row) => row.items?.media_type === filter);
-  }, [rows, filter]);
+  const visibles = useMemo(
+    () => (filtro === "todos" ? juegos : juegos.filter((juego) => juego.estado === filtro)),
+    [juegos, filtro],
+  );
 
   if (loading) {
     return <div className="grid min-h-screen place-items-center text-muted-foreground">Cargando…</div>;
@@ -101,108 +67,59 @@ function Library() {
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-30 border-b border-border/60 bg-background/70 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
-          <div className="min-w-0 flex-1">
-            <h1 className="sr-only">Stantya — Tu archivo personal de coleccionismo</h1>
-            <BrandMark />
-          </div>
+      <AppNav userId={user.id} />
 
-          <div className="flex items-center rounded-xl border border-border p-0.5">
-            <button
-              type="button"
-              aria-label="Modo vitrina"
-              onClick={() => setView("grid")}
-              className={`rounded-lg p-1.5 ${view === "grid" ? "bg-primary/15 text-primary" : "text-muted-foreground"}`}
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              aria-label="Modo lista"
-              onClick={() => setView("list")}
-              className={`rounded-lg p-1.5 ${view === "list" ? "bg-primary/15 text-primary" : "text-muted-foreground"}`}
-            >
-              <List className="h-4 w-4" />
-            </button>
+      <main className="mx-auto max-w-5xl px-4 py-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold">Mi biblioteca</h1>
+            <p className="text-sm text-muted-foreground">
+              {juegos.length} {juegos.length === 1 ? "juego" : "juegos"} en tu diario gamer
+            </p>
           </div>
-          {isAdmin ? (
-            <Button asChild size="sm" variant="ghost" title="Panel de administración">
-              <Link to="/admin">
-                <Shield className="h-4 w-4" />
-              </Link>
-            </Button>
-          ) : null}
           <Button size="sm" onClick={() => setAdding(true)}>
-            <Plus className="mr-1 h-4 w-4" /> Añadir
+            <Plus className="mr-1 h-4 w-4" /> Añadir juego
           </Button>
-
         </div>
-        <div className="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 pb-3">
-          {FILTERS.map((option) => (
+
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+          {(["todos", ...ESTADOS.map((estado) => estado.value)] as Filtro[]).map((value) => (
             <button
-              key={option.value}
+              key={value}
               type="button"
-              onClick={() => setFilter(option.value)}
+              onClick={() => setFiltro(value)}
               className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm transition-colors ${
-                filter === option.value
+                filtro === value
                   ? "border-primary/60 bg-primary/15 text-primary"
                   : "border-border text-muted-foreground hover:text-foreground"
               }`}
             >
-              {option.label}
+              {value === "todos"
+                ? "Todos"
+                : ESTADOS.find((estado) => estado.value === value)!.label}
             </button>
           ))}
         </div>
-      </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-6">
-        <p className="mb-4 text-sm text-muted-foreground">
-          {visible.length} {visible.length === 1 ? "obra" : "obras"}
-        </p>
-
-        {visible.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border p-12 text-center text-muted-foreground">
-            Aún no hay nada aquí. Añade tu primera obra por título, código de barras o portada.
-          </div>
-        ) : view === "grid" ? (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            {visible.map((row) => (
-              <ItemCard key={row.id} row={row} view="grid" onOpen={setSelected} />
-            ))}
+        {visibles.length === 0 ? (
+          <div className="mt-6 rounded-xl border border-dashed border-border p-12 text-center text-muted-foreground">
+            Aún no hay juegos aquí. Añade el primero y empieza a escribir tu diario.
           </div>
         ) : (
-          <div className="space-y-2">
-            {visible.map((row) => (
-              <ItemCard key={row.id} row={row} view="list" onOpen={setSelected} />
+          <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            {visibles.map((juego) => (
+              <GameCard key={juego.id} juego={juego} />
             ))}
           </div>
         )}
       </main>
 
-      <Dialog open={adding} onOpenChange={setAdding}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Añadir a la biblioteca</DialogTitle>
-          </DialogHeader>
-          <AddItemPanel userId={user.id} onSaved={() => void refetch()} onClose={() => setAdding(false)} />
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="sr-only">Ficha de la obra</DialogTitle>
-          </DialogHeader>
-          {selected ? (
-            <ItemDetail
-              row={selected}
-              onChanged={() => void refetch()}
-              onClose={() => setSelected(null)}
-            />
-          ) : null}
-        </DialogContent>
-      </Dialog>
+      <AddGameDialog
+        open={adding}
+        onOpenChange={setAdding}
+        userId={user.id}
+        onSaved={() => void refetch()}
+      />
     </div>
   );
 }

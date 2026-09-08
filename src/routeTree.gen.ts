@@ -10,11 +10,19 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ActividadRouteImport } from './routes/actividad'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as JuegoIdRouteImport } from './routes/juego.$id'
+import { Route as PerfilIdRouteImport } from './routes/perfil.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ActividadRoute = ActividadRouteImport.update({
+  id: '/actividad',
+  path: '/actividad',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -22,31 +30,53 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JuegoIdRoute = JuegoIdRouteImport.update({
+  id: '/juego/$id',
+  path: '/juego/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PerfilIdRoute = PerfilIdRouteImport.update({
+  id: '/perfil/$id',
+  path: '/perfil/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/actividad': typeof ActividadRoute
   '/admin': typeof AdminRoute
+  '/juego/$id': typeof JuegoIdRoute
+  '/perfil/$id': typeof PerfilIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/actividad': typeof ActividadRoute
   '/admin': typeof AdminRoute
+  '/juego/$id': typeof JuegoIdRoute
+  '/perfil/$id': typeof PerfilIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/actividad': typeof ActividadRoute
   '/admin': typeof AdminRoute
+  '/juego/$id': typeof JuegoIdRoute
+  '/perfil/$id': typeof PerfilIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin'
+  fullPaths: '/' | '/actividad' | '/admin' | '/juego/$id' | '/perfil/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin'
-  id: '__root__' | '/' | '/admin'
+  to: '/' | '/actividad' | '/admin' | '/juego/$id' | '/perfil/$id'
+  id: '__root__' | '/' | '/actividad' | '/admin' | '/juego/$id' | '/perfil/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ActividadRoute: typeof ActividadRoute
   AdminRoute: typeof AdminRoute
+  JuegoIdRoute: typeof JuegoIdRoute
+  PerfilIdRoute: typeof PerfilIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,6 +88,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/actividad': {
+      id: '/actividad'
+      path: '/actividad'
+      fullPath: '/actividad'
+      preLoaderRoute: typeof ActividadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin': {
       id: '/admin'
       path: '/admin'
@@ -65,12 +102,29 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/juego/$id': {
+      id: '/juego/$id'
+      path: '/juego/$id'
+      fullPath: '/juego/$id'
+      preLoaderRoute: typeof JuegoIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/perfil/$id': {
+      id: '/perfil/$id'
+      path: '/perfil/$id'
+      fullPath: '/perfil/$id'
+      preLoaderRoute: typeof PerfilIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ActividadRoute: ActividadRoute,
   AdminRoute: AdminRoute,
+  JuegoIdRoute: JuegoIdRoute,
+  PerfilIdRoute: PerfilIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

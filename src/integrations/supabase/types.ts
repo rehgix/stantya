@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      entradas_diario: {
+        Row: {
+          created_at: string
+          es_publica: boolean
+          id: string
+          imagen_url: string | null
+          juego_id: string
+          texto: string
+          updated_at: string
+          user_id: string
+          valoracion: number | null
+        }
+        Insert: {
+          created_at?: string
+          es_publica?: boolean
+          id?: string
+          imagen_url?: string | null
+          juego_id: string
+          texto: string
+          updated_at?: string
+          user_id: string
+          valoracion?: number | null
+        }
+        Update: {
+          created_at?: string
+          es_publica?: boolean
+          id?: string
+          imagen_url?: string | null
+          juego_id?: string
+          texto?: string
+          updated_at?: string
+          user_id?: string
+          valoracion?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entradas_diario_juego_id_fkey"
+            columns: ["juego_id"]
+            isOneToOne: false
+            referencedRelation: "juegos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       items: {
         Row: {
           cover_url: string | null
@@ -50,6 +94,93 @@ export type Database = {
           release_year?: number | null
           synopsis?: string | null
           title?: string
+        }
+        Relationships: []
+      }
+      juegos: {
+        Row: {
+          created_at: string
+          estado: Database["public"]["Enums"]["estado_juego"]
+          external_id: string | null
+          genero: string | null
+          id: string
+          plataforma: string | null
+          portada_url: string | null
+          titulo: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          estado?: Database["public"]["Enums"]["estado_juego"]
+          external_id?: string | null
+          genero?: string | null
+          id?: string
+          plataforma?: string | null
+          portada_url?: string | null
+          titulo: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          estado?: Database["public"]["Enums"]["estado_juego"]
+          external_id?: string | null
+          genero?: string | null
+          id?: string
+          plataforma?: string | null
+          portada_url?: string | null
+          titulo?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      perfiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string
+          id: string
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          id: string
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          id?: string
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
+      seguidores: {
+        Row: {
+          created_at: string
+          id: string
+          seguido_id: string
+          seguidor_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          seguido_id: string
+          seguidor_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          seguido_id?: string
+          seguidor_id?: string
         }
         Relationships: []
       }
@@ -133,6 +264,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      estado_juego: "jugando" | "completado" | "backlog" | "deseado"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -261,6 +393,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      estado_juego: ["jugando", "completado", "backlog", "deseado"],
     },
   },
 } as const
