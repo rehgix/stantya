@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Lock, Globe, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -9,6 +9,7 @@ import { useSession } from "@/hooks/use-session";
 import { AppNav } from "@/components/AppNav";
 import { EstadoBadge } from "@/components/GameCard";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ESTADOS, fechaCorta, type EntradaDiario, type EstadoJuego, type Juego } from "@/lib/games";
@@ -42,6 +43,9 @@ function GamePage() {
   const [valoracion, setValoracion] = useState<number | null>(null);
   const [publica, setPublica] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [horas, setHoras] = useState("");
+  const [horasSyncedFor, setHorasSyncedFor] = useState<string | null>(null);
+  const [savingHoras, setSavingHoras] = useState(false);
 
   const { data: juego } = useQuery({
     queryKey: ["juego", id],
@@ -66,6 +70,24 @@ function GamePage() {
   });
 
   const esMio = Boolean(user && juego && juego.user_id === user.id);
+
+  useEffect(() => {
+    if (juego && horasSyncedFor !== juego.id) {
+      setHoras(juego.horas_jugadas != null ? String(juego.horas_jugadas) : "");
+      setHorasSyncedFor(juego.id);
+    }
+  }, [juego, horasSyncedFor]);
+
+  async function guardarHoras() {
+    setSavingHoras(true);
+    const { error } = await supabase
+      .from("juegos")
+      .update({ horas_jugadas: horas.trim() ? Number(horas) : null })
+      .eq("id", id);
+    setSavingHoras(false);
+    if (error) toast.error("No se pudo guardar las horas jugadas");
+    else toast.success("Horas actualizadas");
+  }
 
   async function guardarEntrada() {
     if (!user || !texto.trim()) return;
@@ -152,6 +174,25 @@ function GamePage() {
                     <EstadoBadge estado={juego.estado} />
                   )}
                 </div>
+                {esMio ? (
+                  <div className="mt-3 flex items-center gap-2">
+                    <Label htmlFor="horas" className="text-xs text-muted-foreground">
+                      Horas jugadas
+                    </Label>
+                    <Input
+                      id="horas"
+                      type="number"
+                      min={0}
+                      value={horas}
+                      onChange={(event) => setHoras(event.target.value)}
+                      onBlur={() => void guardarHoras()}
+                      className="h-8 w-20"
+                      disabled={savingHoras}
+                    />
+                  </div>
+                ) : juego.horas_jugadas ? (
+                  <p className="mt-3 text-xs text-muted-foreground">{juego.horas_jugadas} horas jugadas</p>
+                ) : null}
                 {esMio ? (
                   <Button
                     variant="ghost"
