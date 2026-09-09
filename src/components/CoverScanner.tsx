@@ -17,7 +17,7 @@ interface Props {
   className?: string;
 }
 
-/** Ratio del estuche físico para videojuegos: 3:4. */
+/** Ratio del estuche físico: 3:4 en videojuegos. */
 function caseRatio(mediaType: MediaType): number {
   return mediaType === "game" ? 3 / 4 : 2 / 3;
 }
