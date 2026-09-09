@@ -35,6 +35,7 @@ export interface Juego {
   genero: string | null;
   external_id: string | null;
   estado: EstadoJuego;
+  horas_jugadas: number | null;
   created_at: string;
 }
 
