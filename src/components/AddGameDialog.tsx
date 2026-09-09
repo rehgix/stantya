@@ -21,6 +21,7 @@ export function AddGameDialog({ open, onOpenChange, userId, onSaved }: Props) {
   const [genero, setGenero] = useState("");
   const [portada, setPortada] = useState("");
   const [estado, setEstado] = useState<EstadoJuego>("backlog");
+  const [horasJugadas, setHorasJugadas] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function save() {
@@ -33,6 +34,7 @@ export function AddGameDialog({ open, onOpenChange, userId, onSaved }: Props) {
       genero: genero.trim() || null,
       portada_url: portada.trim() || null,
       estado,
+      horas_jugadas: horasJugadas.trim() ? Number(horasJugadas) : null,
     });
     setSaving(false);
     if (error) {
@@ -45,6 +47,7 @@ export function AddGameDialog({ open, onOpenChange, userId, onSaved }: Props) {
     setGenero("");
     setPortada("");
     setEstado("backlog");
+    setHorasJugadas("");
     onSaved();
     onOpenChange(false);
   }
@@ -104,6 +107,18 @@ export function AddGameDialog({ open, onOpenChange, userId, onSaved }: Props) {
               value={portada}
               onChange={(event) => setPortada(event.target.value)}
               placeholder="https://…"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="horas">Horas jugadas (opcional)</Label>
+            <Input
+              id="horas"
+              type="number"
+              min={0}
+              value={horasJugadas}
+              onChange={(event) => setHorasJugadas(event.target.value)}
+              placeholder="0"
             />
           </div>
 
