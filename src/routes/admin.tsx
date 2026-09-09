@@ -5,7 +5,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   BarChart3,
-  Gamepad2,
   Library,
   RefreshCw,
   Settings,
@@ -234,7 +233,6 @@ function MetricsSection() {
         value={data.totalItems}
         icon={<Library className="h-4 w-4" />}
       />
-      <KpiCard label="Videojuegos" value={data.byType.game} icon={<Gamepad2 className="h-4 w-4" />} />
     </div>
   );
 }
