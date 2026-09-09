@@ -234,7 +234,6 @@ function MetricsSection() {
         value={data.totalItems}
         icon={<Library className="h-4 w-4" />}
       />
-      <KpiCard label="Videojuegos" value={data.byType.game} icon={<Gamepad2 className="h-4 w-4" />} />
     </div>
   );
 }
