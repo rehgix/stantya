@@ -103,6 +103,7 @@ export type Database = {
           estado: Database["public"]["Enums"]["estado_juego"]
           external_id: string | null
           genero: string | null
+          horas_jugadas: number | null
           id: string
           plataforma: string | null
           portada_url: string | null
@@ -115,6 +116,7 @@ export type Database = {
           estado?: Database["public"]["Enums"]["estado_juego"]
           external_id?: string | null
           genero?: string | null
+          horas_jugadas?: number | null
           id?: string
           plataforma?: string | null
           portada_url?: string | null
@@ -127,6 +129,7 @@ export type Database = {
           estado?: Database["public"]["Enums"]["estado_juego"]
           external_id?: string | null
           genero?: string | null
+          horas_jugadas?: number | null
           id?: string
           plataforma?: string | null
           portada_url?: string | null
