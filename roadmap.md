@@ -20,3 +20,8 @@
 - [x] Juegos: caja frontal TheGamesDB priorizando Europa/España; RAWG marcado como respaldo
 - [x] Marcado `Edición internacional` y carátulas alternativas en el buscador
 - [x] Respaldo web (Google Custom Search) con guardado en el almacén propio; requiere GOOGLE_CSE_API_KEY y GOOGLE_CSE_CX
+
+## Enfoque videojuegos (hecho)
+- [x] Biblioteca de juegos, diario por juego, perfil público y actividad de seguidos
+- [x] Landing centrada en el diario gamer
+- [x] Retirados componentes y utilidades de libros/películas
