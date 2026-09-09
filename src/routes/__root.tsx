@@ -78,11 +78,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Stantya — Tu archivo personal de coleccionismo" },
+      { title: "Stantya — Tu diario personal de videojuegos" },
       {
         name: "description",
         content:
-          "Stantya cataloga y organiza tu colección física de libros, videojuegos y películas en una galería elegante.",
+          "Stantya es el diario personal de tu vida gamer: rastrea tu colección de videojuegos, escribe notas y recuerdos, y sigue la actividad de otros jugadores.",
       },
 
       { property: "og:type", content: "website" },

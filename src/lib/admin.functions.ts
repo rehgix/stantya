@@ -5,7 +5,6 @@ export interface AdminMetrics {
   totalUsers: number;
   newUsers7d: number;
   totalItems: number;
-  byType: { book: number; game: number; movie: number };
 }
 
 export interface AdminUser {
@@ -88,20 +87,13 @@ export const getAdminMetrics = createServerFn({ method: "GET" })
 
     const { data: inventory, error } = await db
       .from("user_inventory")
-      .select("id, items(media_type)");
+      .select("id");
     if (error) throw error;
-
-    const byType = { book: 0, game: 0, movie: 0 };
-    for (const row of inventory ?? []) {
-      const type = (row as any).items?.media_type as keyof typeof byType | undefined;
-      if (type && type in byType) byType[type] += 1;
-    }
 
     return {
       totalUsers: users.length,
       newUsers7d: users.filter((user) => new Date(user.created_at).getTime() >= weekAgo).length,
       totalItems: inventory?.length ?? 0,
-      byType,
     };
   });
 
