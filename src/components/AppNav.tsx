@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Gamepad2, Activity, User, LogOut } from "lucide-react";
+import { Gamepad2, Activity, BarChart3, User, LogOut } from "lucide-react";
 
 import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,14 @@ export function AppNav({ userId }: { userId: string }) {
           >
             <Activity className="h-4 w-4" />
             <span className="hidden sm:inline">Actividad</span>
+          </Link>
+          <Link
+            to="/estadisticas"
+            className={linkClass}
+            activeProps={{ className: `${linkClass} ${activeClass}` }}
+          >
+            <BarChart3 className="h-4 w-4" />
+            <span className="hidden sm:inline">Estadísticas</span>
           </Link>
           <Link
             to="/perfil/$id"
