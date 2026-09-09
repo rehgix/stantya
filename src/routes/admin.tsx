@@ -5,7 +5,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   BarChart3,
-  Gamepad2,
   Library,
   RefreshCw,
   Settings,
