@@ -230,10 +230,11 @@ function MetricsSection() {
         hint="Altas de la última semana"
       />
       <KpiCard
-        label="Juegos en colecciones"
+        label="Obras en colecciones"
         value={data.totalItems}
-        icon={<Gamepad2 className="h-4 w-4" />}
+        icon={<Library className="h-4 w-4" />}
       />
+      <KpiCard label="Videojuegos" value={data.byType.game} icon={<Gamepad2 className="h-4 w-4" />} />
     </div>
   );
 }
