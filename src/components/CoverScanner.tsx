@@ -17,7 +17,7 @@ interface Props {
   className?: string;
 }
 
-/** Ratio del estuche físico: 3:4 en videojuegos, 2:3 en libros y películas. */
+/** Ratio del estuche físico para videojuegos: 3:4. */
 function caseRatio(mediaType: MediaType): number {
   return mediaType === "game" ? 3 / 4 : 2 / 3;
 }

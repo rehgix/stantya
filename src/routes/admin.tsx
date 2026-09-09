@@ -5,8 +5,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   BarChart3,
-  BookOpen,
-  Film,
   Gamepad2,
   Library,
   RefreshCw,
@@ -232,13 +230,10 @@ function MetricsSection() {
         hint="Altas de la última semana"
       />
       <KpiCard
-        label="Obras en colecciones"
+        label="Juegos en colecciones"
         value={data.totalItems}
-        icon={<Library className="h-4 w-4" />}
+        icon={<Gamepad2 className="h-4 w-4" />}
       />
-      <KpiCard label="Libros" value={data.byType.book} icon={<BookOpen className="h-4 w-4" />} />
-      <KpiCard label="Videojuegos" value={data.byType.game} icon={<Gamepad2 className="h-4 w-4" />} />
-      <KpiCard label="Películas" value={data.byType.movie} icon={<Film className="h-4 w-4" />} />
     </div>
   );
 }

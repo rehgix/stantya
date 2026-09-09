@@ -64,10 +64,10 @@ export function AuthPanel() {
         </div>
 
         <h1 className="font-display mt-8 text-3xl leading-tight font-bold tracking-tight">
-          Tu biblioteca de libros, videojuegos y películas
+          Tu diario personal de videojuegos
         </h1>
         <p className="font-mono text-muted-foreground mt-3 text-xs">
-          Accede para catalogar tus obras por portada, formato, estado y puntuación.
+          Accede para rastrear tus juegos, escribir entradas de diario y compartir recuerdos.
         </p>
 
         <div className="bg-card ring-line mt-6 rounded-2xl p-5 ring-1">
